@@ -1,0 +1,201 @@
+(5771|8690123072) NOTICE: "ORBVerboseLogging" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DCPSDefaultAddress" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DCPSMonitor" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DCPSTypeObjectEncoding" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DCPSLogLevel" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "FederationRecoveryDuration" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "FederationInitialBackoffSeconds" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "FederationBackoffMultiplier" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "FederationLivelinessDuration" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "scheduler" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "scheduler_slice" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: Service_Participant::load_domain_ranges(): config does not have a [DomainRange] section.
+(5771|8690123072) NOTICE: TransportRegistry::load_transport_templates(): config does not have a [transport_template] section.
+(5771|8690123072) NOTICE: "queue_messages_per_pool" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "queue_initial_pools" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "max_packet_size" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "max_samples_per_packet" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "optimum_packet_size" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "thread_per_connection" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "datalink_release_delay" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "fragment_reassembly_timeout" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "datalink_control_chunks" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "receive_preallocated_message_blocks" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "receive_preallocated_data_blocks" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "local_address" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "advertised_address" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "send_buffer_size" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "rcv_buffer_size" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "use_multicast" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "multicast_group_address" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "multicast_interface" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "anticipated_fragments" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "max_message_size" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "nak_depth" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "ttl" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "nak_response_delay" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "heartbeat_period" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "send_delay" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DataRtpsRelayAddress" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "RtpsRelayOnly" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "UseRtpsRelay" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "DataStunServerAddress" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: "ResponsiveMode" is not defined in config file - using code default.
+(5771|8690123072) NOTICE: Service_Participant::load_domain_configuration(): failed to open [domain] section - using code default.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_topics no [topic] sections.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_datawriterqos no [datawriterqos] sections.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_datareaderqos no [datareaderqos] sections.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_publisherqos no [publisherqos] sections.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_subscriberqos no [subscriberqos] sections.
+(5771|8690123072) NOTICE: StaticDiscovery::parse_endpoints no [endpoint] sections.
+(5771|8690123072) NOTICE: Service_Participant::intializeScheduling() - no scheduling policy specified, not setting policy.
+(5771|8690123072) Service_Participant::get_domain_participant_factory: Creating NetworkConfigModifier
+(5771|8690123072) NetworkConfigModifier::update_interfaces: enumerating interfaces.
+(5771|8690123072) Service_Participant::get_discovery: returning default RTPS discovery for domain 42.
+(5771|8690123072) Spdp::SpdpTransport::open_unicast_socket() - failed to open 0.0.0.0:17910 ACE_SOCK_Dgram::open: Address already in use.  Trying next participantId...
+(5771|8690123072) Spdp::SpdpTransport::open_unicast_socket() - opened unicast socket on port 17912
+(5771|8690123072) DomainParticipantImpl::enable: enabled participant 0103f84d.89850627.168bfe5b.000001c1(46fa9308) in domain 42
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) DomainParticipantImpl::assign_handle: New unmapped InstanceHandle 1
+(5771|8690123072) DDS::ParticipantBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 911d60 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 911e00 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=DCPSParticipant) enabled
+(5771|8690123072) DDS::TopicBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 913e60 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 913f00 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=DCPSTopic) enabled
+(5771|8690123072) DDS::PublicationBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 915f80 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 916020 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=DCPSPublication) enabled
+(5771|8690123072) DDS::SubscriptionBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 9180d0 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 918170 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=DCPSSubscription) enabled
+(5771|8690123072) OpenDDS::DCPS::ParticipantLocationBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 91a1f0 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 91a290 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=OpenDDSParticipantLocation) enabled
+(5771|8690123072) OpenDDS::DCPS::ConnectionRecordDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 91c330 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 91c3d0 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=OpenDDSConnectionRecord) enabled
+(5771|8690123072) OpenDDS::DCPS::InternalThreadBuiltinTopicDataDataReaderImpl::enable_specific-data Cached_Allocator_With_Overflow 91e470 with 20 chunks
+(5771|8690123072) DataReaderImpl::enable Cached_Allocator_With_Overflow 91e510 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) SubscriberImpl::reader_enabled, datareader(topic_name=OpenDDSInternalThread) enabled
+(5771|8690123072) DirectPriorityMapper:thread_priority() - mapped TRANSPORT_PRIORITY value 0 to thread priority 0.
+(5771|8690123072) TransportReceiveStrategy-mb Cached_Allocator_With_Overflow 0x103043e38 with 1000 chunks
+(5771|8690123072) TransportReceiveStrategy-db Cached_Allocator_With_Overflow 0x103043ed8 with 100 chunks
+(5771|8690123072) TransportReceiveStrategy-data Cached_Allocator_With_Overflow 0x103043f78 with 2 chunks
+(5771|8690123072) TransportImpl::open()
+   transport_type:               rtps_udp
+   name:                         _OPENDDS__SEDPTransportInst_0103f84d89850627168bfe5b42
+   queue_messages_per_pool:      10
+   queue_initial_pools:          5
+   max_packet_size:              2147481599
+   max_samples_per_packet:       10
+   optimum_packet_size:          4096
+   thread_per_connection:        false
+   datalink_release_delay:       10000
+   datalink_control_chunks:      32
+   fragment_reassembly_timeout:  5:00.000
+   receive_preallocated_message_blocks:0
+   receive_preallocated_data_blocks:0
+   local_address:                0.0.0.0:49612
+   use_multicast:                true
+   multicast_group_address:      239.255.0.1:17902
+   multicast_interface:          
+   nak_depth:                    0
+   anticipated_fragments:        63
+   max_message_size:             65466
+   nak_response_delay:           0.100 s
+   heartbeat_period:             0.200 s
+   send_buffer_size:             65536
+   rcv_buffer_size:              65536
+   ttl:                          1
+   responsive_mode:              false
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) DomainParticipantImpl::assign_handle: New unmapped InstanceHandle 2
+(5771|8690123072) WriteDataContainer sample_list_element_allocator a0cb70 with 20 chunks
+(5771|8690123072) DataWriterImpl::enable-mb Cached_Allocator_With_Overflow a0d090 with 20 chunks
+(5771|8690123072) DataWriterImpl::enable-db Cached_Allocator_With_Overflow a0d130 with 20 chunks
+(5771|8690123072) DataWriterImpl::enable-header Cached_Allocator_With_Overflow a0d1d0 with 20 chunks
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) TransportImpl::open()
+   transport_type:               rtps_udp
+   name:                         the_rtps_transport
+   queue_messages_per_pool:      10
+   queue_initial_pools:          5
+   max_packet_size:              2147481599
+   max_samples_per_packet:       10
+   optimum_packet_size:          4096
+   thread_per_connection:        false
+   datalink_release_delay:       10000
+   datalink_control_chunks:      32
+   fragment_reassembly_timeout:  5:00.000
+   receive_preallocated_message_blocks:0
+   receive_preallocated_data_blocks:0
+   local_address:                0.0.0.0:55237
+   use_multicast:                true
+   multicast_group_address:      239.255.0.2:7401
+   multicast_interface:          
+   nak_depth:                    0
+   anticipated_fragments:        63
+   max_message_size:             65466
+   nak_response_delay:           0.200 s
+   heartbeat_period:             1.000 s
+   send_buffer_size:             65536
+   rcv_buffer_size:              65536
+   ttl:                          1
+   responsive_mode:              false
+(5771|8690123072) WriterImpl::setup_serialization: Setup successfully with XCDR2 data representation.
+(5771|8690123072) DataWriterImpl::setup_serialization: sample size is unbounded, not using data allocator, always allocating from heap
+(5771|8690123072) Sedp::write_publication_data_unsecure - not currently associated, dropping msg.
+(5771|8690123072) Sedp::add_publication: calling match_endpoints
+(5771|8690123072) Sedp::match_endpoints 0103f84d.89850627.168bfe5b.00000002(5d8c3143)
+(5771|8690123072) DataWriterImpl::enable: got GUID 0103f84d.89850627.168bfe5b.00000002(5d8c3143), publishing to topic name "AAA" type "Messenger::Message"
+(5771|8690123072) ConditionImpl::signal_all()
+(5771|8690123072) StatusConditionImpl::get_trigger_value() - mask==0x2000, changes==0x0.
+(5771|8690123072) StatusConditionImpl::get_trigger_value() - mask==0x2000, changes==0x0.
+Block until subscriber is available
+(5771|8690123072) StatusConditionImpl::get_trigger_value() - mask==0x2000, changes==0x0.
+ERROR: /Users/zhx/Desktop/Opendds_demo/Publisher/src/Publisher.cpp:114: main() - wait failed!
+(5771|8690123072) Service_Participant::~Service_Participant
+(5771|8690123072) WARNING: Service_Participant::~Service_Participant: There are 1 remaining domain participant(s). It is recommended to delete them before shutdown.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) DataLinkSet::send_control: no links for publication 00000000.00000000.00000000.00000000(ecbb4b55), not sending control message.
+(5771|6172471296) Sedp::match_endpoints remove 0103f84d.89850627.168bfe5b.00000002(5d8c3143)
+(5771|6172471296) DomainParticipantImpl::return_handle: Returned unmapped InstanceHandle 2
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) DomainParticipantImpl::return_handle: Returned unmapped InstanceHandle 1
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|6172471296) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Service_Participant::get_discovery: returning repository for domain 42, repo DEFAULT_RTPS.
+(5771|8690123072) Spdp::~Spdp remove discovered participants
+(5771|8690123072) SpdpTransport::close
+(5771|8690123072) SpdpTransport::~SpdpTransport
+(5771|8690123072) Service_Participant::shutdown
+(5771|8690123072) DomainParticipantFactoryImpl::~DomainParticipantFactoryImpl()
