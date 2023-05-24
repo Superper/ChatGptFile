@@ -1,8 +1,10 @@
-
 #ifndef HEADER_SocketFactoryBase_H
 #define HEADER_SocketFactoryBase_H
+
+
 #include "SocketBase.h"
-#include "TcpServer.cpp"
+#include "TcpServer.h"
+#include "TcpClient.h"
 class SocketFactoryBase
 {
 public:
@@ -16,6 +18,14 @@ class TcpServerFectory : public SocketFactoryBase
     virtual SocketBase *CreateSocket() override
     {
         return new TcpServer;
+    }
+};
+
+class TcpClientFectory : public SocketFactoryBase
+{
+    virtual SocketBase *CreateSocket() override
+    {
+        return new TcpClient;
     }
 };
 #endif

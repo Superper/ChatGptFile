@@ -3,14 +3,16 @@
 #ifndef SOCKETMANAGER_H
 #define SOCKETMANAGER_H
 
+#include "../src/SocketFactory.h"
+#include "Consumers.h"
 #include <iostream>
-#include<memory>
-#include"../src/SocketBase.h"
-#include"../src/SocketFactory.h"
+#include <map>
+#include <memory>
 
 enum class SocketType
 {
-    TCP,
+    TCPServer,
+    TCPClient,
     UDP,
     UDPMulticast
 };
@@ -24,21 +26,23 @@ class SocketConnectionManager
         return &instance;
     }
 
-    // 这里实现添加、删除、获取连接的接口
-    bool AddConnection(const std::string topic_name,SocketType soket_type, uint16_t port, std::string inet_addr = "");
+    bool AddConnection(const std::string topic_name, SocketType soket_type, uint16_t port,
+                       std::string inet_addr = "127.0.0.1");
     bool RemoveConnection(const std::string topic_name);
-    bool SubscribeTopic(const std::string topic_name);
+    bool SubscribeTopic(const std::string topic_name, Consumers *user);
     bool UnSubscribeTopic(std::string topic_name);
+    void SendData(const std::string &addr, const char *data, uint32_t size);
 
   private:
+    void SocketMsg(const char buffer[], const uint16_t &siz, const std::string &topic_name);
     SocketConnectionManager() = default;
-    SocketConnectionManager(const SocketConnectionManager &) = delete;            // 禁止拷贝构造函数
-    SocketConnectionManager &operator=(const SocketConnectionManager &) = delete; // 禁止赋值运算符
+    SocketConnectionManager(const SocketConnectionManager &) = delete;
+    SocketConnectionManager &operator=(const SocketConnectionManager &) = delete;
 
-    std::unordered_map<int, SocketConnectionManager> connections_; // 存储连接列表
     std::vector<std::unique_ptr<SocketBase>> socket_list_;
-    int nextConnId_ = 0;                                            // 连接的唯一ID生成器
-    SocketFactoryBase *socket_factory_ = nullptr;                   // socket工厂类
+    std::unordered_map<std::string, std::vector<Consumers *>> users;
+
+    SocketFactoryBase *socket_factory_ = nullptr;
 };
 
 #endif // SOCKETMANAGER_H
