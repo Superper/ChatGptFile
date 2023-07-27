@@ -1,0 +1,3 @@
+20150424 
+    从FL位于re使用fread rdState 之后，发现
+	_fseeki64(FL,re-rdState,SEEK_CUR);其中re和rdState都为int，然后使用ftell(FL)和_ftelli64(FL)的结果竟然一个是-1和0；

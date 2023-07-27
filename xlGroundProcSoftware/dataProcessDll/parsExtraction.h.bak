@@ -1,0 +1,1535 @@
+#include "stdafx.h"
+#include "OpenCV_HeaderFile.h"
+#include "dataProcessDll.h"
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <direct.h>
+#include <string.h>
+#include <queue>
+
+#define UINT8  unsigned __int8
+#define UINT16 unsigned __int16
+#define UINT32 unsigned __int32
+#define UINT64 unsigned __int64
+#define UINT   unsigned int
+
+//错误类型定义
+#define ERROR_MODEL -1 //模式错误
+#define ERROR_PATH  -2
+#define ERROR_Search -3
+#define ERROR_TIFF  -6
+#define ERROR_ARRAY -5
+#define ERROR_Value  8
+//
+#define SC_D (180.0)
+#define FT_M 0.3048
+#define C_LIGHT (3.0e8)
+
+#define C          2.999999999e8 
+#define PI         3.14159265358979
+#define PI_D2      1.5707963267490 
+#define MAX(a,b)  (a>=b ? (a) : (b))
+#define MIN(a,b)  (a<=b ? (a) : (b))
+#define INFO_NUM   6     // 快视下传目标参数个数
+#define OUT_INFO_NUM 10  // 地面检测输出目标输出参数个数
+
+#define MAX_LIST_NUM 32768
+#define MAX_NODE_NUM 81920
+
+#define VR_MAX 10    // m/s
+#define VR_MIN 3     // m/s
+
+#define TH_VALUE 4       // 有效链表门限值
+#define START_BAT_NO 2   // 跳过的帧数
+
+
+//广域GMTI相位中值长度的最大字节数
+#define GYPHMLENMAX (512*8)
+#define GYAIMLENMAX (8192*6*2)
+#define SBAIMNUM 16
+
+const int  HD_LEN=4; 
+const  UINT32 HEADLEN=512;
+const  int    TIFHEIGHT=512;
+const  unsigned short sarGmtiAimPos=509;
+const int DT_HEAD[]={0x01, 0xDC, 0xEF, 0x18};
+const int DT6Suo_HEAD[]={0xAA, 0x55, 0xAA, 0x55};
+const int BD_ARRAY[]={420,210,80,25,1360,700};
+const int FS_ARRAY[]={500,250,125,31.5,1600,800};
+const double RS_ARRAY[]={0.150,0.30,0.50,1.0,3.0,5.0,10.0,20.0};
+const char MD_ARRAY[][16] ={"条带","聚束","滑动聚束","SAR-GMTI","广域-GMTI"}; 
+const double BEAM_WIDTH[]={2.067,2.77,3.22,6.4,3.1,2.067};
+
+//sar-GMTI一个点目标占用的字节数
+const int  GMTIAIMWIDTH=10;
+const bool recordsPrint=true;
+
+/************记录信息帧位置******************/
+enum numTypeEnum{otherEnm,uInt8Enm,uInt16Enm,uInt32Enm,uInt64Enm,int16Enm,int32Enm,int64Enm,fl32Enm,db64Enm,Bcd1Enm,Bcd2Enm,Bcd3Enm,Bcd4Enm};
+struct stParInFrame
+{
+		int startPosion;//偏移量(字节)
+		double unit;//(单位)默认为1
+		numTypeEnum numType; 
+	    stParInFrame();
+};
+
+
+struct PointLoc
+{
+	double lati;
+	double logn;
+	double h;
+
+	double Px;
+	double Py;
+	double Pz;
+
+	double Pn;
+	double Pu;
+	double Pe;
+};
+
+
+typedef struct gyAimInfoSt
+{
+	int aimsNum;
+	double aimAmp1,aimAmp2;
+	double aimInterPhase;	
+	int aimDopNum;
+	int aimRangeNum;
+	int aimPostDopNum;
+
+	double aimInterAngle;
+	struct gyAimInfoSt * next;
+
+    double tar_r0;
+	double tar_ampl;
+	double tar_azimuth;
+	double href;
+    
+	int aim_frame_no;
+	int aim_wave_no;
+
+	double aim_direction;
+	double aim_velocity;
+	double aim_longitude;
+	double aim_latitude;
+
+} gyAimInfoList;
+
+
+typedef struct gyAimInfoHdSt
+{
+	gyAimInfoList * gyAimInfoPt;
+	int numAll;
+
+} gyAimInfoHd;
+
+
+typedef struct gyPathInfoSt
+{
+	int Id;
+	int cnt;//计数 关联了几个点
+	double Longitude;
+	double Latitude;
+	double Height;
+	double Velocity;
+	double Direction;
+	double IFNew;
+	double Prop;
+	struct gyPathInfoSt *Next;
+
+} gyPathList;
+
+
+typedef struct gyPathHdSt
+{
+	double pathNum;
+
+	gyPathList *gyPathPt;
+
+} gyPathHd;
+
+
+typedef struct gyConInfoSt
+{
+	double dbLatitude,dbLongitude,vel,ID;
+
+} gyConInfo;
+
+
+typedef struct sys_par
+{
+	int frame_no;
+	int wave_no;
+	double B_Na; //需要判读
+	double R_near;//最近斜距离
+	double prf;//prf
+	double az_vel;
+	double scan_ang; // 弧度
+	double elev_ang; // 弧度 俯仰角
+	double yaw_ang;  // 弧度
+	double lati;  //载机纬度
+	double logn;  //载机经度
+	double fly_ang; // 载机航向角
+	double Fs;
+	double href;
+	double lookside;  // 左--1，右 -- -1;
+	double fc;
+	double Br;
+	double D;
+	double tar_height;
+	long Nr;
+
+} GYParsTOLuo;
+
+/*******************************************/
+//////////////////////////////////////////////////
+class fmtConvCl
+{
+private:
+	UINT8 *ar;
+	union {
+		UINT8 u[2];
+		__int16 s;
+	} Int16Un;
+	union {
+		UINT8 u[2];
+		UINT16 s;
+	} UInt16Un;
+
+	union {
+		UINT8 u[4];
+		__int32 s;
+	} Int32Un;
+
+	union {
+		UINT8 u[4];
+		UINT32 s;
+	} UInt32Un;
+
+	union {
+		UINT8 u[8];
+		double s;
+	} db64Un;
+
+	union {
+		UINT8 u[4];
+		float s;
+	} ft32Un;
+
+	UINT16 byteToUint16(int start);	 
+	 __int16 byteToInt16(int start);
+
+	 //大端
+	 UINT16 b2U16BigEndian(int start);
+	 __int16 b216BigEndian(int start);
+	 //
+	 UINT16 b2U16LittleEndian(int start);
+	 __int16 b216LittleEndian(int start);
+	 
+	 __int32 byteToInt32(int start);	 
+
+	 double byteToDouble(int start);
+	 float byteToFloat(int start);
+
+	 int   byteTo16Bcd(int start);
+	 int   byteTo8Bcd(int start);
+public:
+	UINT32 byteToUint32(int start);
+	UINT32 b2U32BigEndian(int start);
+
+	fmtConvCl(UINT8 *ar);
+	~fmtConvCl();
+	double getResult(stParInFrame fmFrame);
+
+	double getBigEndianResult(stParInFrame fmFrame);
+	double get16LittleEndianResult(stParInFrame fmFrame);	
+};
+
+
+//记录包头任务位置
+struct taskInfoPosition
+{
+		//任务代号，飞行器类型，飞机批号，飞机号，传输方式，图像压缩比
+		stParInFrame missionCodes,planeType,planeNum,transType,imgCompRate,powerOnCnt;
+		void initial();
+};
+
+
+//记录包头mu位置
+struct muInfoPosition
+{       
+
+	    //扫描列号、年、月、日、时、分、秒、毫秒 
+	    stParInFrame scanCode,date_year,date_month,date_day,time_hour,time_minutes,time_second,time_m_second,
+		//经度，纬度，飞机高度，飞机目标相对高度，飞机俯仰角，俯仰角速度，俯仰角加速度
+		plane_longitude,plane_latitude,plane_height,aim_height,plane_dive_angle,plane_dive_angle_V,
+		//飞机横滚角，横滚速度，横滚加速度，飞机航向角，飞机航向偏角
+		plane_dive_angle_a,plane_hor_angle,plane_hor_angle_v,plane_hor_angle_a,plane_direction_angle,plane_departure_angle,
+		//飞机偏流角，飞机偏航角速度，飞机偏航角加速度，地速，真空速度，指示速度
+		plane_de_flow_angle,plane_departure_v,plane_departure_a,plane_ground_v,plane_noair_v,plane_point_v,
+		//飞机东速度，飞机北速度，飞机天速度，东向加速，北向加速，天向加速
+		plane_east_v,plane_north_v,plane_up_v,plane_east_a,plane_north_a,plane_up_a;
+	    //
+	    //rAngle距离向波束预定角范围为(-179 ~179度)，左侧视为正，右侧视为负
+	    stParInFrame rAngle,aAngle; 
+	    
+	    void initial();
+
+};
+
+//记录包头图像参数位置
+struct sarImageInfoPosition
+{
+	                 //周期号,  条带号，  图像列数，图像行数，   图像位深，
+	    stParInFrame loop_num,strip_num,img_cols,img_rows,img_deepth,
+		
+     	//图像中心点经度，      图象中心点纬度，     图象中心点高度，    左上角经度，          左上角纬度，       左下角经度
+		img_center_longitude,img_center_latitude,img_center_height,left_top_longitude,left_top_latitude,left_down_longitude,
+			
+	    //左下脚纬度，         右上角经度，           右上角纬度，   右下角经度，           右下角纬度
+		left_down_latitude,right_up_longitude,right_up_latitude,right_down_longitude,right_down_latitude,
+		
+		//工作模式， 侧视  
+		work_mode,look_Side,
+		      
+		//方位像元尺寸，距离像元尺寸，地距分辨率，斜距分辨率，图像幅宽， 图像长      最近斜距，        最远斜距， 场景中心斜距，       最近地距
+		a_point_size,r_point_size,ground_res,slope_res,img_width,img_length,slope_nearest,slope_far,slope_sen_center,ground_nearest,
+		
+		//最远地距， 场景中心高度，波束指向角，重复频率，prf计数，多普勒中心频率，开机次数，重要目标识别，载荷编号，载荷类型
+		ground_far,scene_center_height,spot_dir_angle,prf,prfCount,dopler_center,time_poweron,import_aim_bool,load_code,load_type,		
+		
+
+		//波束水平宽度，
+		beam_horz_width,beam_A_width,beam_R_width,beam_FW_Angle,
+		
+		//带宽 采样频率 距离向侧视角 分辨率 采样点数 多视数飞机经度 飞机纬度 飞机高度 飞机目标高度 飞机东向速度 飞机北向速度
+		band,fs,rsAngle,sarRes,sampoints,multipleView,plane_longitude,plane_latitude,plane_height,aim_height,plane_east_v,plane_north_v;
+
+
+		stParInFrame sampleStart,Tp,samples;
+
+		void initial();
+
+};
+
+
+//记录包头sarGMTI参数位置
+struct sarGMTIAimInfoPosition
+{   
+	//目标数、图像方位点数、第一个目标的参数
+  	stParInFrame 	aimsNum, scAzPoints;
+	
+	void initial();
+};
+
+//记录包头广域GMTI参数位置
+struct GYParsInfoPosition
+{
+	//帧编号、波位号、方位波束起始角、方位波束终止角、扫描步进、驻留脉冲数、开机次数、工作模式、载荷编号、载荷类型	
+	//分辨率 方位波束宽度 发射重频 采样点数
+	//扫描范围 扫描角
+	stParInFrame frameCodes,waveCodes,scanCenterAngle,scanScope,scanStep,pulseResident,powerOnTimes,workMode,loadCode,loadType,
+		         resvAb,spotWid,prf,band,scanAngle,samples,azimuthCenterAngle;
+	////飞机高度 目标高度 近端斜举  采样频率
+	//stParInFrame plane_height,aim_height;
+	//double deltaR=1.2; // 距离采样间隔 =C_LIGHT*fs/2.0	
+	//double deltaF=1354.0/1024.0; //频率间隔 PRF/脉冲驻留数
+	//int pulseNum=1024; // 脉冲驻留数
+
+	stParInFrame sampleStart,Tp;
+	void initial();
+
+};
+
+//记录包头广域GMTI目标位置
+struct GYAimInfoPosition
+{
+      //目标数
+  	stParInFrame 	aimsNum;	
+	void initial();
+};
+
+struct NewGYAimInfoPosition
+{
+	 //目标数
+  	stParInFrame 	aimsNum,pulseResident,phaseMidStart,aimParsStart;	
+	void initial();
+};
+
+
+//6所定义的dat文件格式
+struct dat6CommonInfoPosition
+{
+	stParInFrame infoMark,datLen,missionCodes,planeType,planeNum,planeBatNum,imgCompRate,transType,equipType,equipCode,powerOnCnt;
+
+	stParInFrame muNum,date_year,date_month,date_day,time_hour,time_minutes,time_second,time_m_second,
+		//经度，纬度，飞机高度，飞机目标相对高度，飞机俯仰角，俯仰角速度，俯仰角加速度
+		plane_longitude,plane_latitude,plane_height,aim_height,plane_direction_angle,plane_direction_angle_V,plane_direction_angle_A,
+		
+		plane_div_angle,plane_div_angle_V,plane_div_angle_A,plane_hr_angle,plane_hr_angle_V,plane_hr_angle_A,plane_dflight_angle,plane_dflow_angle,
+
+		plane_ground_v,plane_noair_v,plane_point_v,plane_east_v,plane_north_v,plane_up_v,plane_east_a,plane_north_a,plane_up_a;
+		
+	//飞机东速度，飞机北速度，飞机天速度，东向加速，北向加速，天向加速
+	stParInFrame anFrameCode,waveNum,waveCode,cFreq,lookSide,workMode,workSonMode,RFar,RNear,anCenterAngle,anScanScope,
+
+		a_Spot_cAngle,a_Spot_Width,a_Scan_step,r_Spot_cAngle,r_Spot_Width,r_Scan_step,resident_pulse,resident_time,res,prf;
+
+	dat6CommonInfoPosition();
+
+};
+
+
+/************记录参数信息******************/
+
+//飞行任务参数
+class taskInfo
+{   
+		public:
+		//任务代号，飞行器类型，飞机批号，飞机号，传输方式，图像压缩比
+		double missionCodes,planeType,planeAllowNum,planeNum,transType,imgCompRate,powerOnCnt;
+		
+		taskInfo(UINT8 *ar);
+		~taskInfo();
+		int output(FILE *FL);
+};
+
+
+//IMU参数类
+class muInfo
+{       
+        public:
+	    //扫描列号、年、月、日、时、分、秒、毫秒 
+	    double scanCode,date_year,date_month,date_day,time_hour,time_minutes,time_second,time_m_second,
+		//经度，纬度，高度，飞机目标相对高度，飞机俯仰角，俯仰角速度，俯仰角加速度
+		plane_longitude,plane_latitude,plane_height,plane_aim_height,plane_dive_angle,plane_dive_angle_V,
+		//飞机横滚角，横滚速度，横滚加速度，飞机航向角，飞机航向偏角
+		plane_dive_angle_a,plane_hor_angle,plane_hor_angle_v,plane_hor_angle_a,plane_direction_angle,plane_departure_angle,
+		//飞机偏流角，飞机偏航角速度，飞机偏航角加速度，地速，真空速度，指示速度
+		plane_de_flow_angle,plane_departure_v,plane_departure_a,plane_ground_v,plane_noair_v,plane_point_v,
+		//飞机东速度，飞机北速度，飞机天速度，东向加速，北向加速，天向加速 目标高度
+		plane_east_v,plane_north_v,plane_up_v,plane_east_a,plane_north_a,plane_up_a,aimH;
+		
+		double aAngle,rAngle;
+		
+		muInfo(UINT8 *ar);
+		~muInfo();
+
+		int output(FILE *FL);
+		int output(FILE * FL,int gdNum);
+
+};
+
+
+//SAR图像参数
+class sarImageInfo
+{
+        public:
+	    //周期号,条带号，图像列数，图像行数，图像幅宽，图像长，图像位深，波束水平宽度，波束方位向宽度、波束俯仰向宽度，波束方位角，图像中心点经度，
+	    double loop_num,strip_num,img_cols,img_rows,img_width,img_length,img_deepth,beam_horz_width,beam_A_width,beam_R_width,beam_FW_Angle,img_center_longitude,
+		//图象中心点纬度，图象中心点高度，场景中心高度，左上角经度，左上角纬度，左下角经度
+		img_center_latitude,img_center_height,scene_center_height,left_top_longitude,left_top_latitude,left_down_longitude,
+		//左下脚纬度，右上角经度，右上角纬度，右下角经度，右下角纬度
+		left_down_latitude,right_up_longitude,right_up_latitude,right_down_longitude,right_down_latitude,
+		//方位像元尺寸，距离像元尺寸，地距分 辨率，斜距分辨率，最近斜距，最远斜距，场景中心斜距，最近地距
+		a_point_size,r_point_size,ground_res,slope_res,slope_nearest,slope_far,slope_sen_center,ground_nearest,
+		//最远地距，波束指向角，重复频率，prf计数，多普勒中心频率，开机次数，重要目标识别，工作模式，工作模式编号，载荷编号，载荷类型 合成孔径时间 波束方位角 波束距离向角
+		ground_far,spot_dir_angle,prf,prfCount,dopler_center,time_poweron,import_aim_bool,work_mode,work_mode_num,load_code,load_type,syApTime,a_angle_new,R_angle_new;
+		//采样频率，带宽
+		double band,fs,rsAngle,sarRes,look_Side,multipleView,sampoints,plane_longitude,plane_latitude,plane_height,aim_height,plane_east_v,plane_north_v,sampleStart,Tp,samples;
+		char workModeStr[18];
+
+		
+		sarImageInfo(UINT8 *ar);
+	
+		int output(FILE *FL);
+};
+
+
+//SAR/GMTI参数类
+class sarGMTIAimInfo
+{
+
+private:
+	void locatFunc(double H,double fly_ang,float lookside,float *R0, float *logn, float *lati, int tar_num);
+
+public:
+	//飞机经度、飞机纬度、飞机高度、飞机航向角、最近斜距、
+	double plane_longitude,plane_latitude,plane_height,plane_direction_angle,plane_ground_v,
+		slope_nearest,fs,sampoints,elevationAngle,look_Side,prf,multipleView,yawAngle;
+	
+	//sarGMTI点迹对应N个图像的,第N个图的飞机经纬度
+	double planeLonLast,planeLatLast;
+	//目标位置信息
+	stParInFrame *aimRangePointsFr,*aimAzimuthPointsFr,*aimVFr,*aimStrengthFr;
+	//目标个数
+	UINT32 aimsNum;
+	UINT32 scAzPoints;
+	UINT32  * aimRangePoints;
+	UINT16  * aimAzimuthPoints;
+	//加入了标记校正
+	int     *Tar_Azloc;
+	char    *Tar_azrev;
+
+	float   * aimV;
+	UINT16  * aimStrength;
+	float   * aimLongitude;
+	float   * aimlatitude;
+
+	//表示初始化是否正常
+    bool blInitial;
+public:
+
+	sarGMTIAimInfo(UINT8* ar);
+	sarGMTIAimInfo(UINT8* ar,double lastPlaneLon,double lastPlaneLat);
+	int Point_Trace2(UINT16 *Tar_Az,UINT32 *Tar_Ra,UINT16 *Tar_Amp, float *Tar_ph,UINT Tar_Num,int win_ra,int win_az);
+	~sarGMTIAimInfo();
+
+	int output(FILE * FL);
+
+};
+
+
+//WAS-GMTI系统参数
+class GYParsInfo
+{// check by Yunhua-Luo @ 07/22
+      
+	public:
+	//帧编号、波位号、方位波束起始角、方位波束终止角、扫描步进、驻留脉冲数、开机次数、工作模式、载荷编号、载荷类型
+	//分辨率 方位波束宽度 发射重频 带宽 扫描角 采样起始  脉宽
+	double frameCodes,waveCodes,scanCenterAngle,scanScope,scanCycle,scanStep,pulseResident,powerOnTimes,workMode,loadCode,loadType,
+		   resvAb,spotWid,prf,band,fs,scanAngle,sampleStart,Tp,samples,azimuthAngle,azimuthCenterAngle;
+		
+	//最近距离  最远距离
+	double RNear,RFar;
+	int output(FILE * FL);
+	GYParsInfo(UINT8* ar);
+	~GYParsInfo();
+
+};
+
+
+//广域GMTI目标参数
+class GYAimInfo
+{
+		//目标编号,目标帧号,目标经度,目标纬度,目标速度,目标方向,目标高度,目标时间十分秒;
+	double aimNumCl,aimFrameNum,aimLagitude,aimLatitude,aimV,aimHeight,
+		aimTimeHour,aimTimeMinutes,aimTimeSecond;
+
+    stParInFrame *aim3DtPrFr, *aim3DtNxFr, *aimAzimuthAngleFr, *aimDoplerNumFr,*aimRangeNumFr;
+	//3dt杂波抑制前目标幅度、3dt杂波抑制后目标幅度、目标方位角、目标距离门号、目标多普勒通道号
+	UINT32  aimsNum;
+	UINT16 *aim3DtPr;
+	UINT16 *aim3DtNx;
+	double *aimAzimuthAngle;
+	UINT16 *aimDoplerNum;
+	UINT16 *aimRangeNum;
+	
+	//凝聚后的目标个数
+    public:
+	int aimAggNum;	
+	//double *aimInterAngle;
+	//波束方位角 距离角 偏离角
+	
+    gyAimInfoHd lstHd1;
+	gyAimInfoHd lstHd2;
+
+public:
+	double elevationAngle, azimuthAngle,yawAngle;
+	double plane_longitude,plane_latitude,plane_height,plane_direction_angle,
+		plane_aim_height,slope_nearest,slope_far,slope_sen_center,fs,sampoints,
+		plane_east_v,plane_north_v,look_Side,prf;
+	// 载机到目标的高度 距离采样间隔 频率间隔 脉冲驻留数
+	double deltaRG,deltaFG,pulseNumG;
+
+	GYAimInfo(UINT8* ar);
+
+	//为了测试由西电的matlab程序编写的凝聚、测角程序,重载点目标的初始化函数
+	GYAimInfo(FILE * fl);
+	~GYAimInfo();
+
+	int aimAgglomerate();
+	int aimIntAngle();
+
+	int parsTrans();
+
+	int output(FILE * FL);
+
+	int GeoMapOutPut(FILE * FL);
+
+};
+
+// WAS-GMTI点迹类
+class NewGYAimInfo
+{
+public:
+	//目标个数、方位向驻留数
+	double aimsNum,pulseResident;
+	double dbRNear;
+	double phaseMiddleValue[GYPHMLENMAX],aimPars[GYAIMLENMAX];
+
+	gyAimInfoHd lstHeader;
+
+	NewGYAimInfo(UINT8* ar);
+	~NewGYAimInfo();
+
+	template <class T>
+	void BubbleSort(T *pdata,__int64 N,__int64 *pIndex);
+	int outputAimInfo(FILE * FL);
+
+	//@from luo
+	template <class T>
+	inline  double min_val(T *val,__int64 num,__int64 *loc);
+
+	template <class T>
+	inline void CircShift(T *data,long data_len,int mov_shift);
+	int Point_Trace(long *Tar_Az,long *Tar_Ra,float *Tar_Amp, float *Tar_ph,long Tar_Num,int win_ra,int win_az);
+	int WASGmti_locating(double *median_ph_raw, double *tar_info, long tar_num, sys_par par,double *R_near_new,double *tar_output_info);
+	template <class T>
+	void Write2Double(char* file_out,T* pdata,__int64 N);
+
+};
+
+// 航迹关联节点结构体
+typedef struct node{
+
+	long frame_no; 
+	long wave_no;
+
+	bool is_related;
+	bool is_real;
+	bool is_used;
+
+	double lati;
+	double logn;
+
+	double Vx;
+	double Vy;
+
+	double tar_ampl;
+	double tar_vr;
+	double tar_h;
+	double tar_azi;
+	double tar_r0;
+	double tar_direction;
+    
+	node* next;
+
+}Node;
+
+// 航迹链表类
+class list
+{
+
+public:
+
+	Node *head;
+	Node *tail;
+	Node *next_tail;
+	bool is_update;
+
+	int list_len;
+	double P0_INPUT[16]; // TRANSFORM MATRIX
+	double X0_INPUT[4];  // INITAL VALUE 
+	double T_SCAN;		 // SCAN_CYCLE;
+	double var_xy;
+	double Pz_ref;
+	double lati_ref;
+	double logn_ref;
+
+	list();
+	bool CreateNodeList(Node* node_init);
+	bool AddNode(Node* node);
+	bool DeleteNode(int index);
+	bool GetPreTail(Node* node);
+
+	int GetLength();
+	int CalListWeight();
+
+	void Output(FILE *fid_txt, FILE* fid_dat,long hj_no, long len);
+	void Print();
+	void ListDestroy();
+	void PredictNext();
+	void KalmanPredict();
+	void KalmanFilter(double var_x, double var_y, Node* node);
+	//void KalmanFilter(double var_x, double var_y, double* Measure_XY);
+
+};
+
+
+class MathOP
+{
+	public:
+	void MtrixPuls(double* A, double* B, int m, int s, int n,double* res);
+	void MtrixTrans(double* A, int m, int n);
+	void InvMtrix22(double* A, double* B);
+	void MtrixAdd(double* A, double* B, int LEN);
+	void MtrixSub(double* A, double* B, int LEN);
+	void MtrixEqual(double* A, double* B, int LEN);
+	void MtrixClear(double* A, int LEN);
+};
+
+
+class AxisCal
+{
+public:
+	void WGS84ToENV(double lati, double logn, double href, double* Pos);
+	void ENVToWGS84(double lati, double logn, double* Pos, double* latlogn);
+	double RangeCalByGPS(double lati0,double logn0, double lati1, double logn1);
+	double CalDirection(double lat_s,double lon_s, double lat_e, double lon_e);
+
+};
+
+
+// 航迹关联类
+class NewGYLineInfo
+{
+	public:
+	
+	double dotPathNum;		 // 单次链表数量 
+	double list_direction;
+	gyPathHd linePathHeader; // 链表输出结构
+	UINT8 *  ar;
+	char HJ_filePath[1024];
+
+	NewGYLineInfo(UINT8 *arIn);
+	~NewGYLineInfo();
+
+	void flightPathCon();
+	void outPutLineTxt(FILE * FL);
+
+private:
+
+	void MT_relate_XL(gyAimInfoList * aimPtTemp,long tar_num); // added by Luo
+	bool MovingTar_Relate(Node *mynode, long tar_num, bool beFirstBat);  //added by Luo  // linear predict
+	bool MovingTar_Relate_New(Node *mynode, long tar_num, bool beFirstBat);  //added 2016/1/15 Kalman filter
+};
+
+
+// ************* image processing functions ******************
+class imgProc
+{
+	int norm_image(Mat & src);
+	Mat mean_filter(Mat & src,int WinW);
+	Mat var_filter(Mat & src, int WinW);
+	Mat Lee(Mat& image_in,int WinW,float Looks);
+	Mat Gamma(Mat& image_in,int WinW,float Looks);
+	Mat Kuan(Mat& image_in,int WinW,float Looks);
+	Mat Frost(Mat& image_in,int WinW);
+	Mat Sigma(Mat& image_in,int WinW);
+
+	void gamma_correct(Mat &src,float high,float low, float gamma);
+
+	void high_low(Mat &src ,float &low,float &high);
+
+public:
+	//rgb信息
+	void Form_Tif_Cv(int h,int w,UINT8 *ar,string fl)
+	{
+			Mat src(h,w,CV_8UC3);
+			src.data=ar;
+			src.rows=h;
+			src.cols=w;
+			src.dims=2;
+			
+			//std::vector<cv::Mat> chArs(src.channels());
+
+			//split(src,chArs);
+			//
+			//int type = src.type();
+			//float high, low;
+			//high = 0.98;
+			//low = 0.01;
+			//for(int p=0;p<3;p++)
+			//{
+			//high_low(chArs[p],low,high);
+			////gamma_correct(chArs[p],high,low,1);//src 单通道，CV_8U或者CV_16U
+			//}
+
+			//merge(chArs,src);
+
+			imwrite(fl,src);	
+	}
+
+public:
+
+	string rootPath;
+	UINT8*  ar;
+	imgProc(UINT8* arIn,string strPath);
+
+	imgProc();
+
+	void SAR_VS_params_init(SAR_VS_params &params);
+
+	void Local_Funcs(SAR_VS_params param);
+
+	void Local_Funcs1(SAR_VS_params param);
+
+	void Local_Funcs();
+
+	int creatTif();
+
+	int creatCoTif(UINT8 *dataAr);
+
+	int gdalCreatTif(SAR_VS_params stPars);
+
+	//图像四角定位
+	void Geo_locating(double *Tar_info, double *Rs,float *plan_logn,float *plan_lati,float fly_ang,double href,double look_side,__int64 Tar_Num);
+    //function：
+	    //功能：辐射校正
+    //parameters:
+		//nr 距离向点数
+		//ra_beam_ang 距离向波束角度
+		//r_ang 距离向下视角
+		//href 飞机平台高度
+		//r_near 近端斜距
+		//dr  距离向的像元尺寸
+		//ampl_coef 函数返回(幅度系数)
+
+	void allImageProMethod(char * strImage,char * strDest,imageProcParsST procPars);
+	void img_corr(UINT8 *img_data,float *img,float ra_res,float r_near,float href,__int64 till_nr,__int64 till_na,__int64 img_na,__int64 img_nr);
+
+	//@luo
+
+	void LeeFilter(unsigned char* pUnchImg,long npos,long nWidth,long nHight,unsigned char* pUnchSmooth);
+	// pUnchImage -- 输入图像 
+	// nWidth ,nHeight -- 输入图像大小；
+	// pUnchSmooth -- 输出图像；
+	void LeeSmooth(unsigned char* pUnchImage,long nWidth,long nHeight,unsigned char* pUnchSmooth);
+
+	double sinc(double x);
+	void ampl_corr(float *ampl_coef,float dr,float r_near ,float href,float r_ang, float ra_beam_ang,long nr);
+	void img_corr(unsigned char *img_data,float *ampl_coef,__int64 img_na,__int64 img_nr);
+
+	//几何校正
+	void img_corr(unsigned char *img_data,float ra_res,float r_near,float href,__int64 img_na,__int64 img_nr);
+};
+
+class imgPreProc
+{
+	imgPreProc()
+	{
+
+	}
+
+};
+
+//各种模式公有的功能
+//生成文件名称
+class commonFuncs
+{
+    public:
+	//任务代号_日期(月：日：年)_时间(时：分：秒)_条代号_周期号_有无损压缩表识以及照相次数_飞机批号飞机号_压缩比_xxx表识和载荷表示
+	string  getName(UINT8 * ar);
+	string  getNameByLoopNum(UINT8* ar,int stripNum);
+	string  getNameLocalTime(UINT8* ar,int stripNum);
+	//@20151126
+	//我去,命名方式又要更改
+	//需求随意改,而且还得让你短时间完成,你不写滥代码都不好意思
+	 string getRawPicName(UINT8 * ar);
+	 string getDataName(UINT8 * ar);
+	 string getMarkPicName(UINT8 *ar);
+	 //
+	 string getRawPicName(UINT8 * ar,int stripNum);
+	 string getCombPicName(UINT8 * ar,int stripNum);
+	 string getDataName(UINT8 * ar,int stripNum);
+	 string getMarkPicName(UINT8 *ar,int stripNum);
+
+		//***pars:
+		//dataAr:数据源数组；
+		//dthead:帧头标志位数组;
+		//arLen:数据源数组的长度；
+		//headLen:帧头标志位数组的长度；
+	int  getHeadPosition(UINT8 *dataAr,int arLen);
+	     //6Suo date
+	int  getHead6SuoDatePosition(UINT8 *dataAr,int arLen);
+	     //6suo frame length
+	int  getHead6SuoDateFrameLen(UINT8 *dataAr);
+
+	int  searchHeadPositionX64(FILE * fl);
+	    //从FILE中搜索
+	int  searchHeadPosition(FILE * fl);
+	    //获取sar的工作模式
+	int  getSarModel(UINT8 * ar);
+	    //获取分辨率图像 预想通过此项，判断方位向编号
+	int  getSarRes(UINT8 * ar);
+	    //判断是否sar/gmti的点迹信息
+	bool getIfSarGmtiAim(UINT8 * ar);
+	    //判断是否sar/gmti的图像信息
+	bool getIfSarGmtiTiff(UINT8 *ar);
+
+	UINT64 getPRFNum(UINT8 * ar);
+	     //获取双通道广域GMTI目标个数
+	int getNewGYAimsNum(UINT8 * ar);
+
+	int getMViewNum(UINT8 *ar);
+
+	int getPowerOnTime(UINT8 * ar);
+
+	template <class T>
+	void logRecords(char * chMessage,T cnt); //OK
+
+	string  getSysTime(FILE *fl);
+
+	int  getHeadPosition(UINT8 *dataAr,int arLen,int *rePos);
+
+	int  getRangePoints(UINT8* ar);
+};
+
+
+class sarModel
+{
+public:
+	//arIn:指向特征码开始的位置
+	//str:存储的根目录(需要一“/”结尾)
+	sarModel(UINT8* arIn,string str);
+	//原始数组
+	UINT8* ar;
+	string rootPath;
+
+	int outPutSarInfo();
+	
+};
+
+class GMTIModel
+{
+	
+	UINT8* ar;
+	string rootPath;
+
+	//muticast
+	WSADATA wsaData;  
+	struct sockaddr_in servaddr;
+	SOCKET sockfd,sockM;
+
+public:
+	sarGMTIAimInfo * gmtiAimPt;
+	//sarGMTI点迹对应N个图像的,第N个图的飞机经纬度
+	double lastPlaneLon,lastPlaneLat;
+
+	GMTIModel(UINT8* arIn,string str);
+	//~GMTIModel();
+
+	int multicast_init();
+    //原始数组
+	int outPutGMTIInfo();
+
+	int outPutGMTIInfoReal();
+    //条带号
+	int outPutGMTIInfo(int loopNum);
+	
+	// add by zhang : add width and height information
+	int outPutGMTIInfo(int loopNum, int nImgWidth, int nImgHeight);
+
+	int outPutGMTIData();
+
+	int outPutTxtInfo();
+};
+
+
+class GY_GMTIModel
+{
+	UINT8* ar;
+	string rootPath;
+	string dataName;
+	NewGYLineInfo * gyNewLinePt;
+
+	//muticast
+	WSADATA wsaData;  
+	struct sockaddr_in servaddr;
+	SOCKET sockfd,sockM;
+
+public:
+	GY_GMTIModel(UINT8 *arIn,string str);
+	~GY_GMTIModel();
+	//muticast init
+	int gy_Multicast_init();
+	int gy_Multicast_init0();
+
+	int output_GY_GMTIInfo();
+	int outPut_GY_DatInfo();
+
+	//2015/11/13 机上改为双通道,而且数据格式更改
+	int output_NewGY_TxtInfo();
+	int outPut_NewGY_DatInfo();
+
+	//航迹
+	int outPut_NewGY_LineInfo(stGMTIProcContent prcCont);
+	int outPut_NewGY_Line_TxtInfo(NewGYLineInfo GYLine);
+	int outPut_NewGY_Line_DatInfo(NewGYLineInfo GYLine);
+	int outPut_NewGY_LineInfo();
+    //
+	//int sendData(const char * info);
+	//int udpSend(const char* ip_address, const unsigned int port,const char *info);
+};
+
+class formGIFFromFengJinCl
+{
+		/**************生成图像******************************************/
+	template <class T>
+	inline  double min_val(T *val,__int64 num,__int64 *loc)
+        {
+           long    i;
+	       long    min_loc=0;
+	      double  min_val0;
+		  if(num<0) return 0.0;
+			min_val0=val[0];
+	        for(i=0;i<num;i++)
+	        {
+	           if(val[i]<min_val0) 
+	           {	  
+	            min_val0=val[i];
+		        min_loc=i;
+	           }
+	         }
+	     *loc=min_loc;
+	     return   min_val0;
+     }
+	template <class T>
+	inline double mean_val(T *val,long num)
+        {
+           long    i;
+	      double  av_val=0.0;
+		   if(num<0) return 0.0;
+		   for(i=0;i<num;i++) av_val+=double(val[i]);
+	       av_val/=double(num);
+	        return   av_val;
+         }
+	template <class T>
+	inline  double std_val(T *val,long num)
+        {
+            long    i;
+	        double  av_val=0.0,temp_val;
+			double  dd_val=0.0;   
+
+		    if(num<0) return 0.0;
+		    for(i=0;i<num;i++)  
+			{	
+               temp_val=double(val[i]);  			
+				av_val+=temp_val;
+		        dd_val+=temp_val*temp_val;
+			  }
+			dd_val/=double(num);
+		    av_val/=double(num);
+			return   sqrt(dd_val-av_val*av_val);
+     }
+
+	template <class T>
+	inline double max_val(T *val,long num,long *loc)
+       {
+         long    i;
+	     long   max_loc=0;
+	      double  max_val0;
+	     if(num<0) return 0.0;
+		 max_val0=val[0];
+ 	      for(i=0;i<num;i++)
+	      {
+	       if(val[i]>max_val0) 
+	         {	  
+	          max_val0=val[i];
+	           max_loc=i;
+	         }
+	      }
+	     *loc=max_loc;
+	   return  max_val0;
+      }	
+	template <class T>
+	inline double  sinc(T x)
+    {
+		double  val;
+		if(x==0)  val=1.0;
+		else      val=sin(PI*x)/x/PI;
+		return val;
+
+    }
+	public:
+	int SAR_FOPEN(FILE **fid, char *fn, char *mode)
+		{
+			*fid=fopen(fn, mode);
+			if(fid ==NULL)
+	   		{
+				printf("file open failed: %s\n", fn);
+				exit(-3);
+			}
+		return 0;
+	  
+		}
+	int SAR_FREAD(FILE **fid, void *buffer, size_t size)
+		{
+ 			if(fread(buffer, 1, size, *fid)!=size)
+			{
+	 		printf("file read error!\n");
+			exit(-3);
+			}
+		return 0;
+		}
+	int SAR_FWRITE(FILE **fid, void *buffer, size_t size)
+		{
+			if(fwrite(buffer, 1, size, *fid)!=size)
+			{
+			printf("file write error!\n"); 
+			exit(-3);
+			}
+			return 0;
+		}
+	int SAR_FCLOSE(FILE **fid)
+		{
+		if(fclose(*fid))
+			{
+			printf("file close error!\n");
+			exit(-3);
+			}
+		return 0;
+		}
+	int SAR_FSEEK(FILE **fid, __int64 offset, int origin)
+	{
+		if(_fseeki64(*fid, offset, origin))
+		{
+		printf("file seek error!\n");
+		exit(-3);
+		}
+    	return 0;
+	}
+	int Form_RGB8_Tif(float *data,char *img_file,long high,long wid,int quan_mode)
+		{
+
+	  	       FILE        *fp_img;
+			   long           loc,n,m;
+			   unsigned char  *img_data=new unsigned char[3*high*wid];
+			   double           rat_ampl=1.0;
+			   double       max_ampl,mean_ampl,std_ampl;
+			   unsigned __int16  de_num=15;
+			   unsigned __int16  tag[]={254,256,257,258,259,262,273,274,277,278,279,282,283,284,296};
+			   unsigned __int16  type[]={4,3,3,3,3,3,4 ,3 ,3,3 ,4 ,5,5,3,3};
+			   unsigned __int32  len[]={1,1,1,3,1,1,1,1,1,1,1,1,1,1,1};
+			   unsigned __int32  val_offset[]={0,4096,6144,194,1,2,216,1,3,6144,75497472,200,208,1,2};
+			   unsigned __int8   ifh[]={73,73,42,0};
+			   unsigned __int16  col[]={8,8,8};
+			   unsigned __int32  res[]={720000,10000,720000,10000};
+			   unsigned __int32   mov=8;
+			   unsigned __int32   idl=0;
+
+			   if((high*wid)<10) 
+			   { 
+				   return 0;
+			   }
+
+			   if(quan_mode==0) rat_ampl=25536.0/max_val(data,high*wid,&loc);
+			   if(quan_mode==1) rat_ampl=15536.0/(mean_val(data,high*wid)+2*std_val(data,high*wid));
+			   if(quan_mode==2) rat_ampl=255.0/(mean_val(data,high*wid)+2.0*std_val(data,high*wid));
+			   if(quan_mode==3) rat_ampl=1.0;
+			 //  printf("rat_ampl=%5.2f\n",rat_ampl);
+				   
+		       for(n=0;n<(3*high*wid);n++) img_data[n]=unsigned char(MIN(rat_ampl*data[n],255)); 
+			   ////////////////////////////////////////////////////////////////			  
+			     val_offset[1]=wid; 
+				 val_offset[2]=high;
+				 val_offset[9]=high;
+				 val_offset[10]=wid*high*3;
+			 /////////////////form tiff////////////////////////////////////
+			 ////////////IFH FORM///////////////////////
+			   SAR_FOPEN(&fp_img,img_file,"wb");
+			   SAR_FWRITE(&fp_img,ifh,sizeof(unsigned char)*4);
+			   SAR_FWRITE(&fp_img,&mov,sizeof(unsigned __int32));
+			   ///////////////////IFD FORM//////////////////
+			   SAR_FWRITE(&fp_img,&de_num,sizeof(unsigned __int16));
+			   for(m=0;m<de_num;m++)
+			   {
+			    SAR_FWRITE(&fp_img,tag+m,sizeof(unsigned __int16));
+				SAR_FWRITE(&fp_img,type+m,sizeof(unsigned __int16));
+				SAR_FWRITE(&fp_img,len+m,sizeof(unsigned __int32));
+				SAR_FWRITE(&fp_img,val_offset+m,sizeof(unsigned __int32));
+			   }
+			   ////////////////////////IMG DATA FORM////////////////
+			   SAR_FWRITE(&fp_img,&idl,sizeof(unsigned __int32));
+			   SAR_FWRITE(&fp_img,col,sizeof(unsigned __int16)*3);
+			   SAR_FWRITE(&fp_img,res,sizeof(unsigned __int32)*4);
+
+			   /*********************************************************/
+			  /* UINT8 * arTemp=new UINT8[wid*3];
+			   int cnt=high/2;
+			   for(int t=0;t<cnt;t++)
+			   {
+				   memcpy((void*)arTemp,(void*)&img_data[t*3*wid],3*wid);
+				   memcpy((void*)&img_data[t*3*wid],(void*)&img_data[(511-t)*3*wid],3*wid);
+				   memcpy((void*)&img_data[(511-t)*3*wid],(void*)arTemp,3*wid);
+			   }
+			   delete []arTemp;*/
+			   /*********************************************************/
+		       SAR_FWRITE(&fp_img,img_data,sizeof(unsigned char)*high*wid*3);
+		 	   SAR_FCLOSE(&fp_img);
+			   /////////////////////////////////////////////////////////////
+			   delete [] img_data;
+			   return 0;
+		}
+	int Form_RGB8_Tif0(unsigned char *img_data,char *img_file,long high,long wid)
+    {
+		
+	  	        FILE        *fp_img;
+			   __int64           loc,n,m;
+			   unsigned __int16  de_num=15;
+			   unsigned __int16  tag[]={254,256,257,258,259,262,273,274,277,278,279,282,283,284,296};
+			   unsigned __int16  type[]={4,3,3,3,3,3,4 ,3 ,3,3 ,4 ,5,5,3,3};
+			   unsigned __int32  len[]={1,1,1,3,1,1,1,1,1,1,1,1,1,1,1};
+			   unsigned __int32  val_offset[]={0,4096,6144,194,1,2,216,1,3,6144,75497472,200,208,1,2};
+			   unsigned __int8   ifh[]={73,73,42,0};
+			   unsigned __int16  col[]={8,8,8};
+			   unsigned __int32  res[]={720000,10000,720000,10000};
+			   unsigned __int32   mov=8;
+			   unsigned __int32   idl=0;
+
+			   if((high*wid)<10) { printf("图像文件大小不对"); return 0;}
+		  
+			     val_offset[1]=wid; 
+				 val_offset[2]=high;
+				 val_offset[9]=high;
+				 val_offset[10]=wid*high*3;
+			 /////////////////form tiff////////////////////////////////////
+			 ////////////IFH FORM///////////////////////
+			   SAR_FOPEN(&fp_img,img_file,"wb");
+			   SAR_FWRITE(&fp_img,ifh,sizeof(unsigned char)*4);
+			   SAR_FWRITE(&fp_img,&mov,sizeof(unsigned __int32));
+			   ///////////////////IFD FORM//////////////////
+			   SAR_FWRITE(&fp_img,&de_num,sizeof(unsigned __int16));
+			   for(m=0;m<de_num;m++)
+			   {
+			    SAR_FWRITE(&fp_img,tag+m,sizeof(unsigned __int16));
+				SAR_FWRITE(&fp_img,type+m,sizeof(unsigned __int16));
+				SAR_FWRITE(&fp_img,len+m,sizeof(unsigned __int32));
+				SAR_FWRITE(&fp_img,val_offset+m,sizeof(unsigned __int32));
+			   }
+			   ////////////////////////IMG DATA FORM////////////////
+			   SAR_FWRITE(&fp_img,&idl,sizeof(unsigned __int32));
+			   SAR_FWRITE(&fp_img,col,sizeof(unsigned __int16)*3);
+			   SAR_FWRITE(&fp_img,res,sizeof(unsigned __int32)*4);
+		       SAR_FWRITE(&fp_img,img_data,sizeof(unsigned char)*high*wid*3);
+		 	   SAR_FCLOSE(&fp_img);
+
+			   ///////////////////////////////////////////////
+			   return 0;
+   }
+	template <class T>
+	void sarGmti_Aim_Mark(char *mark_file,T *img_data,long *tar_az,long *tar_ra,float *tar_vr,__int64 img_na,__int64 img_ra,int tar_num)
+            {
+			 __int64   h,m,n,azs,img_size,imgloc;
+			 int      len,raloc,az_num;
+			 int     mark_ra=20;
+			 int     mark_na=20;
+			 float   *img_rgb=new float[img_na*img_ra*3];
+			 int    az_mark_num,daz;
+			 int    az_mark_beg;
+
+			  img_size=__int64(img_na)*img_ra;
+		    //////////form gmtiImg file name//////
+			    for(h=0;h<img_ra;h++)
+			    {
+				  imgloc=3*h*img_na;
+				   for(m=0;m<img_na;m++)
+				   {
+				    img_rgb[imgloc+3*m+0]=img_data[h*img_na+m];//R
+				    img_rgb[imgloc+3*m+1]=img_data[h*img_na+m];//G
+				    img_rgb[imgloc+3*m+2]=img_data[h*img_na+m];//B
+				   }
+			    }
+
+				commonFuncs cmFuncs;
+
+			 for(h=0;h<tar_num;h++)
+			   {  
+				if(tar_ra[h]>(img_ra-mark_ra+2))   continue;
+				if(tar_az[h]>(img_na-2*mark_na+2)) continue;
+				if(tar_az[h]<(2*mark_na+2))        continue;
+				 az_mark_beg=tar_az[h];
+				 if(tar_vr[h]>0) { az_mark_num=1;        daz=1;  }
+				 else            { az_mark_num=2*mark_na;  daz=-1; } 
+				 for(m=0;m<mark_ra;m++)
+				 { 
+				    imgloc=(tar_ra[h]+m)*3*img_na;
+					az_mark_num+=2*daz;
+					az_mark_beg-=daz;
+
+				    for(n=0;n<az_mark_num;n++) img_rgb[imgloc+3*(az_mark_beg+n)]=255;
+				 }
+
+				/* if(h==3012)
+				 {
+					 int tt=0;
+				 }*/
+
+				 
+				 cmFuncs.logRecords("form merge",(double)h);
+				 
+			   }//*/
+			  Form_RGB8_Tif(img_rgb,mark_file,img_ra,img_na,2);
+			  //
+			delete [] img_rgb;
+      }
+ 
+	template <class T>
+	void sarGmti_Aim_Mark(char mark_file[4][128],T *img_data,long *tar_az,long *tar_ra,float *tar_vr,__int64 img_na,__int64 img_ra,int tar_num)
+            {
+			 __int64   h,m,n,azs,img_size,imgloc;
+			 int      len,raloc,az_num;
+			 int     mark_ra=20;
+			 int     mark_na=20;
+			 float   *img_rgb=new float[img_na*img_ra*3];
+			 int    az_mark_num,daz;
+			 int    az_mark_beg;
+
+			  img_size=__int64(img_na)*img_ra;
+		    //////////form gmtiImg file name//////
+			    for(h=0;h<img_ra;h++)
+			    {
+				  imgloc=3*h*img_na;
+				   for(m=0;m<img_na;m++)
+				   {
+				    img_rgb[imgloc+3*m+0]=img_data[h*img_na+m];//R
+				    img_rgb[imgloc+3*m+1]=img_data[h*img_na+m];//G
+				    img_rgb[imgloc+3*m+2]=img_data[h*img_na+m];//B
+				   }
+			    }
+			 for(h=0;h<tar_num;h++)
+			   {  
+				if(tar_ra[h]>(img_ra-mark_ra+2))   continue;
+				if(tar_az[h]>(img_na-2*mark_na+2)) continue;
+				if(tar_az[h]<(2*mark_na+2))        continue;
+				 az_mark_beg=tar_az[h];
+				 if(tar_vr[h]>0) { az_mark_num=1;        daz=1;  }
+				 else            { az_mark_num=2*mark_na;  daz=-1; } 
+				 for(m=0;m<mark_ra;m++)
+				 { 
+				    imgloc=(tar_ra[h]+m)*3*img_na;
+					 az_mark_num+=2*daz;
+					 az_mark_beg-=daz;
+				    for(n=0;n<az_mark_num;n++) img_rgb[imgloc+3*(az_mark_beg+n)]=255;
+				 }
+			   }
+			  //Form_RGB8_Tif(img_rgb,mark_file,img_ra,img_na,2);
+			   /*********************************/				 
+			  int mergeCnt=img_ra/512;
+			  for(int p=0;p<mergeCnt;p++)
+			  {				
+				  Form_RGB8_Tif(&img_rgb[3*p*512*img_na],mark_file[p],512,img_na,3);
+			  }
+			  //************标记颜色出现问题*****************//
+			 /* int mergeCnt=img_ra/512;
+
+			  UINT8 * chAr=new UINT8[3*img_ra*img_na];
+			  for(int cp=0;cp<3*img_ra*img_na;cp++)
+			  {
+				  chAr[cp]=(UINT8)img_rgb[cp];
+			  }
+
+			  for(int p=0;p<mergeCnt;p++)
+			  {				
+				  string cv_path(mark_file[p]);
+			      imgProc cv_Proc(chAr,cv_path);
+			      cv_Proc.Form_Tif_Cv(512,img_na,&chAr[3*p*512*img_na],cv_path);
+			  }*/
+			   //*****************************//
+
+			  //delete [] chAr;
+			delete [] img_rgb;
+      }
+
+ 	// 子函数标注
+	template <class T>
+	void SAR_GmtiTar_Mark0(char *mark_file,char *gray_file,T *img_data,long *tar_az,long *tar_ra, char *tar_flag, float *tar_vr,__int64 img_na,__int64 img_ra,int tar_num)
+            {// OK check 11/16 OK
+				// 注意数据的排列顺序和查看视角问题；
+
+			  __int64   h,m,n,azs,img_size,imgloc;
+			  int       len,raloc,az_num;
+			  int       mark_ra=25;
+			  int       mark_na=25;
+			  unsigned char *img_rgb =new unsigned char[img_na*img_ra*3];
+			  unsigned char *img_temp=new unsigned char[img_na*img_ra];
+			  int       az_mark_num,daz;
+			  int       az_mark_beg;
+			  img_size=__int64(img_na)*img_ra;
+
+			  __int64 hist_sum_th = MAX(__int64(img_na*img_ra*0.005),2000);
+			  Data2Quan(img_data,img_na,img_ra,img_temp,8,hist_sum_th);
+
+		      //////////form gmtiImg file name//////
+			  for(h=0;h<img_ra;h++)
+			  {
+				 imgloc=3*h*img_na;
+				 for(m=0;m<img_na;m++)
+				 {
+				    img_rgb[imgloc+3*m+0]=img_temp[h*img_na+m];//R
+				    img_rgb[imgloc+3*m+1]=img_temp[h*img_na+m];//G
+				    img_rgb[imgloc+3*m+2]=img_temp[h*img_na+m];//B
+				 }
+			  }
+			 
+			 // Write into gray color file
+			 if(strcmp(gray_file,"")) 
+			 {
+				Form_RGB8_Tif0(img_rgb,gray_file,img_ra,img_na);
+			 }
+
+			 if(!strcmp(mark_file,"")) 
+			 {
+				 delete [] img_rgb;	
+				 delete [] img_temp;
+				 return;
+			 }
+
+			 // tar_az --> img_ra ;
+			 // tar_ra --> img_az
+
+			 for(h=0;h<tar_num;h++)
+			 {  
+				if(tar_az[h]>(img_ra-mark_ra+2))   continue;
+				if(tar_az[h]<(2*mark_ra+2))		   continue;
+				if(tar_ra[h]>(img_na-2*mark_na+2)) continue;
+				if(tar_ra[h]<(2*mark_na+2))        continue;
+				az_mark_beg=tar_ra[h];
+				if(tar_vr[h]>0 && tar_flag[h] == 0) 
+				{  
+					// DRAW RECTANGLE 
+					for(m=0;m<mark_ra;m++)
+					{ 
+						imgloc=(tar_az[h]+m-mark_ra/2)*3*img_na;
+						for(n=0;n<mark_na;n++) 
+						{
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)]=255;
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+1]=0;
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+2]=0;
+						}
+					}
+				}
+				
+				if(tar_vr[h]<=0 && tar_flag[h] == 0)        
+				{ 
+					for(m=0;m<mark_ra;m++)
+					{ 
+						imgloc=(tar_az[h]+m-mark_ra/2)*3*img_na;
+						for(n=0;n<mark_na;n++) 
+						{
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)]=255;
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+1]=0;
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+2]=0;//255
+						}
+					}
+				}
+
+				if(tar_flag[h] != 0)        
+				{ 
+					for(m=0;m<mark_ra;m++)
+					{ 
+						imgloc=(tar_az[h]+m-mark_ra/2)*3*img_na;
+						for(n=0;n<mark_na;n++) 
+						{
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)]=255;
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+1]=0;//255
+							img_rgb[imgloc+3*(az_mark_beg+n-mark_na/2)+2]=0;
+						}
+					}
+				}
+		}
+
+		Form_RGB8_Tif0(img_rgb,mark_file,img_ra,img_na);
+		delete [] img_rgb;	
+		delete [] img_temp;
+ }
+
+	template <class T1, class T2>
+	void Data2Quan(T1 *pdata, __int64 na, __int64 nr, T2 *pout, char bit, __int64 hist_sum_th)
+{
+	// 数据智能量化； Dev by Yunhua-Luo @ 2015/5/16 updated @ 2015/5/21; check OK
+
+	// 1. 量化为16bit数据
+	__int64 k,j,l;
+	long loc=0;
+	__int64 M = 10;
+	__int64 hist_down = M;
+	__int64 hist_up = 65535-M;
+	float max_f = max_val(pdata,na*nr,&loc);
+	float rat   = 65535.0/max_f;
+	
+	unsigned __int16 *pt = new unsigned __int16[na*nr];
+	memset(pt,0,sizeof(unsigned __int16)*na*nr);
+	memset(pout,0,sizeof(T2)*na*nr);
+	for(k=0; k<na*nr; k++) pt[k] = MIN(unsigned __int16((pdata[k]*rat)),65535);
+
+	// 2. 求解直方图
+	__int64 *hist      = new __int64[65536];
+	__int64 *hist_sum1 = new __int64[65536];
+	__int64 *hist_sum2 = new __int64[65536];
+	memset(hist,0,sizeof(__int64)*65536);
+	memset(hist_sum1,0,sizeof(__int64)*65536);
+	memset(hist_sum2,0,sizeof(__int64)*65536);
+	
+	for(k=0; k<na*nr; k++)hist[pt[k]]++;
+	hist_sum1[0] = hist[0];
+	hist_sum2[65535] = hist[65535];
+	for(k=1; k<65536; k++)hist_sum1[k]   = hist_sum1[k-1]+hist[k];
+	for(k=65535; k>0; k--)hist_sum2[k-1] = hist_sum2[k]+hist[k-1];
+
+	// 3. 干掉最大和最小部分
+	for(k=0; k<65536; k++)
+	{
+		if(hist_sum1[k] > hist_sum_th){ hist_down = k;break;}
+	}
+	for(k=65535; k>0; k--)
+	{
+		if(hist_sum2[k] > hist_sum_th){ hist_up = k;break;}
+	}
+	printf("hist_sum_th: %d, hist range : ( %d - %d)\n",hist_sum_th,hist_down,hist_up);
+
+	for(k=0; k<na*nr; k++) 
+	{
+		if(pt[k] > hist_up)   pt[k] = hist_up;
+		if(pt[k] < hist_down) pt[k] = hist_down;
+	}
+	
+	// 4. 数据重新量化；
+	if(bit > 16) bit = 16;
+	__int64 level = __int64(pow(2.0,bit))-1;
+	rat = float(level)/(hist_up-hist_down);
+	for(k=0; k<na*nr; k++) pout[k] = MIN(T2(rat*(pt[k]-hist_down)),level);
+
+	delete [] pt;
+	delete [] hist;
+	delete [] hist_sum1;
+	delete [] hist_sum2;
+
+}
+
+};
+
+
+class dat6CommonInfo
+{
+
+public:
+	//11
+	double infoMark,datLen,missionCodes,planeType,planeNum,planeBatNum,imgCompRate,transType,equipType,equipCode,powerOnCnt;
+
+	//
+	double muNum,date_year,date_month,date_day,time_hour,time_minutes,time_second,time_m_second,
+		//经度，纬度，飞机高度，飞机目标相对高度，飞机俯仰角，俯仰角速度，俯仰角加速度
+		plane_longitude,plane_latitude,plane_height,aim_height,plane_direction_angle,plane_direction_angle_V,plane_direction_angle_A,
+		
+		plane_div_angle,plane_div_angle_V,plane_div_angle_A,plane_hr_angle,plane_hr_angle_V,plane_hr_angle_A,plane_dflight_angle,plane_dflow_angle,
+
+		plane_ground_v,plane_noair_v,plane_point_v,plane_east_v,plane_north_v,plane_up_v,plane_east_a,plane_north_a,plane_up_a;
+		
+	//飞机东速度，飞机北速度，飞机天速度，东向加速，北向加速，天向加速
+	double anFrameCode,waveNum,waveCode,cFreq,lookSide,workMode,workSonMode,RFar,RNear,anCenterAngle,anScanScope,
+
+		a_Spot_cAngle,a_Spot_Width,a_Scan_step,r_Spot_cAngle,r_Spot_Width,r_Scan_step,resident_pulse,resident_time,res,prf;
+
+
+	dat6CommonInfo(UINT8* ar);
+
+	void output(FILE *FL);
+};
+
+
+// check 2016/1/15;

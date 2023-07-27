@@ -1,0 +1,4024 @@
+// dataProcessDll.cpp : 定义 DLL 应用程序的导出函数。
+//如果你看到一些函数的算法,顿时凌乱了,可能会有乱七八糟的嫌疑。抱歉,硬件数据接口不经告知的随意更改,乱七八糟的整体工作安排是导致
+//这种局面的直接原因-_^!。
+
+#include "stdafx.h"
+#include "parsExtraction.h"
+
+/*start**实传接口-----开放给613的接口*******************************************************************************************************/
+	//仅仅适用于单帧,而且帧头在数组开始位置
+	extern "C" _declspec(dllexport) int _stdcall infoRestore1(UINT8 *dataAr,char *strDest,int len)
+	{
+		commonFuncs cmFuncs;
+
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("Error in info search",0);
+			return ERROR_Search;
+		}
+
+		string rtPath(strDest);	
+		////寻找sar-GMTI 广域GMTI
+		int  mdJudge=cmFuncs.getSarModel(dataAr);
+		if(mdJudge==3)
+		{
+			    //cmFuncs.logRecords("Sar-GMTI创建infoRestore路径",0);
+			    rtPath.append("SAR_GMTI\\");
+				//创建文件夹
+				_mkdir(rtPath.c_str());
+				rtPath.append("TUXIANG");
+				//创建文件夹
+				_mkdir(rtPath.c_str());
+
+			   
+			    int rtPathLen=rtPath.length();
+			    char chRawFolder[512];
+				for(int i=0;i<rtPathLen;i++)
+				{
+					chRawFolder[i]=rtPath[i];
+				}
+				chRawFolder[rtPathLen]='\0';
+				//cmFuncs.logRecords("Sar-GMTI创建infoRestore路径结束",0);
+				cmFuncs.logRecords(chRawFolder,0);
+
+		}
+		else
+		{
+			    //cmFuncs.logRecords("Sar创建infoRestore路径",0);
+			    rtPath.append("SAR-IMAGE");
+				//创建文件夹
+				_mkdir(rtPath.c_str());
+			   
+			    int rtPathLen=rtPath.length();
+			    char chRawFolder[512];
+				for(int i=0;i<rtPathLen;i++)
+				{
+					chRawFolder[i]=rtPath[i];
+				}
+				chRawFolder[rtPathLen]='\0';
+				//cmFuncs.logRecords("Sar创建infoRestore路径结束",0);
+				cmFuncs.logRecords(chRawFolder,0);
+
+		}
+		//else if(mdJudge==4)
+		//{
+		//	cmFuncs.logRecords("广域-GMTI",0);
+		//}
+
+
+		int rgPoints=cmFuncs.getRangePoints(dataAr);
+		if(rgPoints<512)
+		{
+			cmFuncs.logRecords("Error in info Range Points",1);		
+			return ERROR_ARRAY;
+		}
+
+		UINT32  lenFrame=rgPoints*HEADLEN+512;
+
+		if(len<lenFrame)			 
+		{
+		   cmFuncs.logRecords("Error in info Range Points",1);
+		   return ERROR_ARRAY;			 
+		}
+
+		//cmFuncs.logRecords("sarMl.outPutSarInfo 开始",1);		
+		sarModel sarMl(dataAr,rtPath);	
+		int rtRes=sarMl.outPutSarInfo();	
+		//cmFuncs.logRecords("sarMl.outPutSarInfo 结束",1);	
+		return rtRes;
+
+	}	
+	//仅仅适用于单帧,而且帧头在数组开始位置
+	extern "C" _declspec(dllexport) int _stdcall creatTIFF1(UINT8 *dataAr,char *strDest,int len,imgProcConrolSt procControl)
+	{
+		commonFuncs cmFuncs;
+
+		cmFuncs.logRecords("********************creatTIFF1****start",len);
+
+		static int i=0;
+		i++;
+		
+		//方位向号码
+		static int loopNum=0;
+		static int pwOnTime=1;
+		//发现数组经过Mat处理之后,出现变化。
+		UINT8 * dataArCo=NULL;
+		
+		cmFuncs.logRecords("*******dataArCo=new UINT8[len]; start",0);
+
+		dataArCo=new UINT8[len];
+		
+		cmFuncs.logRecords("*******dataArCo=new UINT8[len]; end",0);
+
+		if(dataArCo!=NULL)
+		{
+		  memcpy(dataArCo,dataAr,len);
+		}
+		else
+		{
+			cmFuncs.logRecords("dataArCo==NULL return",0);
+
+			return -1;
+		}
+
+		//cmFuncs.logRecords("##the number is:",i);
+
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("creatTIFF1 shRes!=0",0);
+
+			if(dataArCo!=NULL)
+			{
+				delete [] dataArCo;
+				dataArCo=NULL;
+			}
+
+			return ERROR_Search;
+		}
+
+		int rgPoints=cmFuncs.getRangePoints(dataAr);
+
+		//if(pwOnTime==(cmFuncs.getPowerOnTime(ar)-1))
+		//{
+		//	loopNum=0;
+		//  pwOnTime++;
+		//}
+
+		if(rgPoints<512)
+		{
+			cmFuncs.logRecords("Error in tiff Range Points",1);
+			
+			if(dataArCo!=NULL)
+			{
+				delete [] dataArCo;
+				dataArCo=NULL;
+			}
+
+			return ERROR_TIFF;
+		}
+
+		UINT32  lenFrame=rgPoints*HEADLEN+512;
+
+		if(len<lenFrame)			 
+		{
+			cmFuncs.logRecords("Error in info Range Points",1);
+
+			if(dataArCo!=NULL)
+			{
+				delete [] dataArCo;
+				dataArCo=NULL;
+			}
+		   
+		   return ERROR_ARRAY;			 
+		}
+
+			string rtPath(strDest);							
+			string mergePath(strDest);
+			int rtRes=0;
+			char chMgFolder[512];
+/***************************************/
+					////寻找sar-GMTI 广域GMTI
+				int  mdJudge=cmFuncs.getSarModel(dataAr);
+				if(mdJudge==3)
+				{
+						cmFuncs.logRecords("Sar-GMTI创建creatTIFF1路径",0);
+						rtPath.append("SAR_GMTI\\");
+						mergePath.append("SAR_GMTI\\");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+						rtPath.append("TUXIANG");
+						mergePath.append("TUXIANG");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+		   
+						int rtPathLen=rtPath.length();
+						char chRawFolder[512];
+						for(int i=0;i<rtPathLen;i++)
+						{
+							chRawFolder[i]=rtPath[i];
+						}
+						chRawFolder[rtPathLen]='\0';
+						cmFuncs.logRecords("Sar-GMTI创建creatTIFF1路径结束",0);
+						cmFuncs.logRecords(chRawFolder,0);
+
+				}
+				else
+				{
+						cmFuncs.logRecords("Sar创建creatTIFF1路径",0);
+						rtPath.append("SAR-IMAGE");
+						mergePath.append("SAR-IMAGE");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+			   
+						int rtPathLen=rtPath.length();
+						char chRawFolder[512];
+						for(int i=0;i<rtPathLen;i++)
+						{
+							chRawFolder[i]=rtPath[i];
+						}
+						chRawFolder[rtPathLen]='\0';
+						cmFuncs.logRecords("Sar创建creatTIFF1路径结束",0);
+						cmFuncs.logRecords(chRawFolder,0);
+				}
+				
+			/* ==== add by zhang : reset power on time ==== */
+			static int lastPowerOnTime = -1;
+			int currentPowerOnTime = cmFuncs.getPowerOnTime(dataAr);
+			if(currentPowerOnTime != lastPowerOnTime){
+				lastPowerOnTime = currentPowerOnTime;
+				loopNum = 0;
+			}
+			/* ============================================= */
+
+/***************************************/
+			// 后处理操作
+			if(procControl.blAlCor||procControl.blRemove||procControl.blAmpCor)
+			{
+				imgProc procImg(dataAr,rtPath);	
+
+				SAR_VS_params stPars;
+				commonFuncs cmFuncs;
+				string flPath=rtPath.append("\\"+cmFuncs.getRawPicName(dataAr,loopNum)+".tif");
+				procImg.SAR_VS_params_init(stPars);
+				stPars.output_file_name=flPath;
+				stPars.tifParams.dataMat=dataAr+512;
+				stPars.tifParams.dtHeight=512;
+				stPars.tifParams.dtWidth=rgPoints;
+
+				cmFuncs.logRecords("**start create single tiff",1);
+				//procImg.gdalCreatTif(stPars);
+				procImg.Local_Funcs1(stPars);
+				cmFuncs.logRecords("**end create single tiff",1);
+
+				mergePath.append("\\COMBINATION\\");
+				//路径从string转为char *
+				int mPathLen=mergePath.length();
+				for(int i=0;i<mPathLen;i++)
+				{
+					chMgFolder[i]=mergePath[i];
+				}
+				chMgFolder[mPathLen]='\0';
+				//创建文件夹
+				_mkdir(chMgFolder);
+
+				cmFuncs.logRecords("##start create co tiff",2);
+				procImg.creatCoTif(dataArCo);
+				cmFuncs.logRecords("##end create co tiff",2);
+			}
+
+			if(dataArCo!=NULL)
+			{
+			delete []dataArCo;
+			dataArCo=NULL;
+			}
+
+			loopNum++;
+		return rtRes;
+	}
+	//sarGMTI和广域GMTI点迹还原
+	extern "C" _declspec(dllexport) int _stdcall gMTIInfoTrans1(UINT8 *dataAr,char *strDest,int len)
+	{
+		commonFuncs cmFuncs;
+
+		cmFuncs.logRecords("****进入gmti点迹实传处理中**** ",0);
+
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+		cmFuncs.logRecords(strDest,99);
+
+		
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("(帧头错误)Error in Real MTI Aim Proc search",(double)dataAr[0]);
+			return ERROR_Search;
+		}
+
+		int mdNum=cmFuncs.getSarModel(dataAr);
+
+		if(mdNum<0 || mdNum>4)
+		{
+			cmFuncs.logRecords("(模式错误>4)Error in Real MTI Aim Proc model",0);
+
+			return ERROR_MODEL;
+		}
+
+	  if(mdNum==3)
+		{
+			string rtPath(strDest);
+						cmFuncs.logRecords("Sar-GMTI创建gMTIInfoTrans1路径",0);
+						rtPath.append("SAR_GMTI\\");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+						rtPath.append("DIANJI\\");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+		   
+						int rtPathLen=rtPath.length();
+						char chRawFolder[512];
+						for(int i=0;i<rtPathLen;i++)
+						{
+							chRawFolder[i]=rtPath[i];
+						}
+						chRawFolder[rtPathLen]='\0';
+						cmFuncs.logRecords("Sar-GMTI创建gMTIInfoTrans1路径结束",0);
+						cmFuncs.logRecords(chRawFolder,0);
+
+			cmFuncs.logRecords("SarGMTI in Real MTI Aim Proc  model",0);
+			SarGMTIInfoTrans1(dataAr,chRawFolder,len);
+		}
+		else if(mdNum==4)
+		{
+						//cmFuncs.logRecords("广域GMTI in Real MTI Aim Proc model",0);
+			            string rtPath(strDest);
+						//cmFuncs.logRecords("广域GMTI创建gMTIInfoTrans1路径",0);
+						rtPath.append("GY_MTI\\");
+						//创建文件夹
+						_mkdir(rtPath.c_str());
+								   
+						int rtPathLen=rtPath.length();
+						char chRawFolder[512];
+						for(int i=0;i<rtPathLen;i++)
+						{
+							chRawFolder[i]=rtPath[i];
+						}
+						chRawFolder[rtPathLen]='\0';
+						//cmFuncs.logRecords("广域GMTI创建gMTIInfoTrans1路径结束",0);
+						cmFuncs.logRecords(chRawFolder,0);
+			GgmtiDatProc1(dataAr,chRawFolder,len);
+		}
+		else
+		{
+			//cmFuncs.logRecords("(模式错误！=4 ！3)Error in Real MTI Aim Proc model：",mdNum);
+			return ERROR_MODEL;
+		}
+
+		//cmFuncs.logRecords("*******************************************gmti点迹实传处理执行完毕...",0);
+		
+		return 0;
+	}
+
+    extern "C" _declspec(dllexport) int _stdcall sarGMTIInfoRealMerge(UINT8 *dataAr,char *strDest,char *strDatFl,int len)
+	{
+		static int imgCount=0;
+		static UINT8 *arImgFrame=NULL;
+		static UINT32  lenImageFrame=0;
+		//点迹
+		static UINT8 *arAimFrame=NULL;
+		static int picsNum=-1; 
+	    static int loopNum=0;
+		static int rgPoints=0;
+		int imgHdLen=512;
+		int imgRow=512;//单帧图像512行
+		int hdAimLen=1024;//点迹帧头有1024个字节
+		commonFuncs cmFuncs;
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		cmFuncs.logRecords("sarGMTI合成********* Real Merge Proc*************Start",(double)len);
+
+		cmFuncs.logRecords("sarGMTI合成*********strDatFl:",0);
+		cmFuncs.logRecords(strDatFl,1);
+		cmFuncs.logRecords("sarGMTI合成*********strDest:",0);
+		cmFuncs.logRecords(strDest,1);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("sarGMTI合成*********帧格式错误",0);
+			return ERROR_Search;
+		}
+
+
+		int mdNum=cmFuncs.getSarModel(dataAr);
+
+		if(mdNum!=3)
+		{
+			cmFuncs.logRecords("sarGMTI合成*********Model错误",0);
+			return ERROR_MODEL;
+		}
+
+		    UINT32 prfCntImage=cmFuncs.getPRFNum(dataAr);
+		    cmFuncs.logRecords("sarGMTI合成*********image prf",(double)prfCntImage);
+
+		    FILE * FLAimR=fopen(strDatFl,"rb");
+
+			cmFuncs.logRecords("sarGMTI合成*********fopen(strDatFl)",0);
+			if(FLAimR==NULL)
+			{
+				cmFuncs.logRecords("sarGMTI合成*********date文件打开错误!返回！",0);
+				return -1;
+			}
+			UINT32  lenAimFrame=hdAimLen+10*8192;
+			arAimFrame=new UINT8[lenAimFrame];
+
+			if(arAimFrame==NULL)
+			{
+				cmFuncs.logRecords("sarGMTI合成*********arAimFrame==NULL 内存分配失败",0);
+                return -1;
+			}
+
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+			cmFuncs.logRecords("sarGMTI合成*********fread(arAimFrame",0);
+			int rdLen=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAimR);
+
+			if(rdLen<lenAimFrame)
+			{
+				cmFuncs.logRecords("sarGMTI合成*********rdLen<lenAimFrame！返回！",0);
+				cmFuncs.logRecords("sarGMTI合成*********rdLen",(double)rdLen);
+				cmFuncs.logRecords("sarGMTI合成*********lenAimFrame",(double)lenAimFrame);
+				if(arAimFrame!=NULL)
+				{
+					delete []arAimFrame;
+					arAimFrame=NULL;
+				}
+
+				fclose(FLAimR);
+				return -1;
+			}
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+			cmFuncs.logRecords("sarGMTI合成*********Aim prf not in while loop",(double)prfCntAim);
+			
+			while(!feof(FLAimR))
+			  {
+				 memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+				 rdLen=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAimR);
+				 if(rdLen<lenAimFrame)
+			      {
+					cmFuncs.logRecords("sarGMTI合成*********rdLen<lenAimFrame in while loop",0);
+					cmFuncs.logRecords("sarGMTI合成*********rdLen in while loop",(double)rdLen);
+					cmFuncs.logRecords("sarGMTI合成*********lenAimFrame in while loop",(double)lenAimFrame);
+					break;
+			      }
+				 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+				 cmFuncs.logRecords("sarGMTI合成*********aim prf in while loop:",(double)prfCntAim);
+			  }
+
+			  if(arAimFrame!=NULL)
+				{
+					delete []arAimFrame;
+					arAimFrame=NULL;
+				}
+			fclose(FLAimR);
+
+
+		//if(imgCount==0)
+		//{
+
+		//    UINT32 prfCntImage=cmFuncs.getPRFNum(dataAr);
+
+		//	cmFuncs.logRecords("sarGMTI合成*********image prf count=0 in sarGMTI Real Merge Proc:",(double)prfCntImage);
+		//	/**********************************/
+		//	//目标文件	
+		//	FILE * FLAimR=fopen(strDatFl,"rb");
+		//	if(FLAimR==NULL)
+		//	{
+		//		cmFuncs.logRecords("sarGMTI合成*********sarGMTI Aim File Path Error!",0);
+		//		return -1;
+		//	}
+	
+		//	int endMark=cmFuncs.searchHeadPosition(FLAimR);	 
+		//	//没有搜索到，但已经到文件尾
+		//	if(endMark!=0)
+		//	{
+		//		cmFuncs.logRecords("sarGMTI合成*********aims start lost in sarGMTI Real Merge Proc",0);
+		//		return 0;
+		//	}
+		//	UINT32  lenAimFrame=hdAimLen+10*8192;
+		//	arAimFrame=new UINT8[lenAimFrame];
+		//	memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		//	fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAimR);
+		//	UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+		//	cmFuncs.logRecords("sarGMTI合成*********Aim0 prf count=0 in sarGMTI Real Merge Proc:",(double)prfCntAim);
+		//	if(prfCntImage<prfCntAim)
+		//	{
+		//		cmFuncs.logRecords("prfCntImage<prfCntAim 退出",0);
+		//		//错误,退出
+		//		return -1;
+		//	}
+	
+		//	while(prfCntImage>prfCntAim)
+		//	  {
+		//		if(feof(FLAimR))
+		//		 {
+		//			 cmFuncs.logRecords("aims start lost in sarGMTI Real Merge Proc",1);
+		//			 return -1;
+		//		 }
+		//		 memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		//		 fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAimR);
+		//		 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+		//		 cmFuncs.logRecords("Aim0While prf count in sarGMTI Real Merge Proc:",(double)prfCntAim);
+		//	  }
+		//
+		//	//点迹丢帧
+		//	if(prfCntImage!=prfCntAim)
+		//	{
+		//		cmFuncs.logRecords("aims frame lost in sarGMTI Real Merge Proc",1);
+		//		return -1;
+		//	}
+		//}		
+		///**********************************/
+		//if(imgCount==0)
+		//{
+		//	int mView=cmFuncs.getMViewNum(dataAr);
+		//	picsNum=64/mView;
+		//	rgPoints=cmFuncs.getRangePoints(dataAr);
+		//	//图像帧去除帧头之后的图像大小
+		//	lenImageFrame=rgPoints*imgRow;
+		//	UINT32 imgArSize=lenImageFrame*picsNum;
+		//	arImgFrame=new UINT8[imgArSize];
+		//	memcpy(arImgFrame,&dataAr[imgHdLen],lenImageFrame);
+		//}
+		//else
+		//{
+		//	int rgPtTemp=cmFuncs.getRangePoints(dataAr);
+
+		//	if(rgPtTemp!=rgPoints)
+		//	{
+		//		imgCount=0;
+		//		if(arImgFrame!=NULL)
+		//		{
+		//			delete []arImgFrame;
+		//			arImgFrame=NULL;
+		//		}
+		//		if(arAimFrame!=NULL)
+		//		{
+		//			delete []arAimFrame;
+		//			arAimFrame=NULL;
+		//		}			
+		//		return -1;
+		//	}
+
+		//	memcpy(&(arImgFrame[lenImageFrame*imgCount]),&(dataAr[imgHdLen]),lenImageFrame);		
+		//}
+
+		//if(imgCount!= -1 && imgCount == (picsNum-1))
+		//{
+		//	//合成
+		//	        sarGMTIAimInfo gmtiAim(arAimFrame);
+		//         	
+		//	        int aimNumTemp=gmtiAim.aimsNum;
+
+		//			cmFuncs.logRecords("实传SarGMTI目标个数",(double)aimNumTemp);
+
+		//			if(aimNumTemp>0&&aimNumTemp<8192)
+		//			{
+
+		//				string strMergeName=strDest+cmFuncs.getNameByLoopNum(arAimFrame,loopNum)+".tiff";					 						
+		//				
+		//				long *aimAzPts=new long[aimNumTemp];
+		//				long *aimRgPts=new long[aimNumTemp];
+
+		//				for(int p=0;p<aimNumTemp;p++)
+		//				{
+		//					aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+		//				    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+		//				}
+		//		       //   
+		//				
+		//				int pathLen=strMergeName.length()+1;
+		//				char * pathMark=new char[pathLen];
+		//				memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+		//				formGIFFromFengJinCl sarGmtiMergeCl;
+		//				cmFuncs.logRecords("sarGMTI实传 Merge start:",(double)loopNum);
+		//				sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImgFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,imgRow*picsNum,gmtiAim.aimsNum);
+		//				cmFuncs.logRecords("sarGMTI实传 Merge Complete:",(double)loopNum);
+
+		//				if(aimAzPts!=NULL)
+		//				{
+		//						delete []aimAzPts;
+		//						aimAzPts=NULL;
+		//				}
+
+		//				if(aimRgPts!=NULL)
+		//				{
+		//					delete []aimRgPts;
+		//					aimRgPts=NULL;
+		//				}
+
+		//				if(arImgFrame!=NULL)
+		//				{
+		//					delete []arImgFrame;
+		//					arImgFrame=NULL;
+		//				}
+
+		//				if(arAimFrame!=NULL)
+		//				{
+		//					delete []arAimFrame;
+		//					arAimFrame=NULL;
+		//				}
+		//										
+		//				loopNum++;					
+		//     }
+		//              imgCount=-1;
+		//}
+
+		//imgCount++;		
+
+		//cmFuncs.logRecords("sarGMTI Real Merge Proc*************END",0);
+
+		return 0;
+	}
+	
+	extern "C" _declspec(dllexport) int _stdcall GgmtiDatProc1(UINT8 *dataAr,char *strDest,int len)
+	{
+		int aimNums=512;
+		int BytesOneAim=10;
+		   
+		commonFuncs cmFuncs;
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			return ERROR_Search;
+		}
+
+		        GY_GMTIModel Gy_GMTIMd(dataAr,strDest);
+
+				cmFuncs.logRecords("Gy_GMTIMd.output_NewGY_TxtInfo()",1);
+				Gy_GMTIMd.output_NewGY_TxtInfo();
+				
+				cmFuncs.logRecords("Gy_GMTIMd.outPut_NewGY_DatInfo()",1);
+			    Gy_GMTIMd.outPut_NewGY_DatInfo();
+
+				cmFuncs.logRecords("Gy_GMTIMd.outPut_NewGY_LineInfo()",1);
+				Gy_GMTIMd.outPut_NewGY_LineInfo();
+
+				
+		return 0;
+	}
+	//
+	extern "C" _declspec(dllexport) int _stdcall SarGMTIInfoTrans1(UINT8 *dataAr,char *strDest,int len)
+	{
+		commonFuncs cmFuncs;
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("Error in sarGMTI search",0);
+			return ERROR_Search;
+		}
+
+		int mdNum=cmFuncs.getSarModel(dataAr);
+
+		if(mdNum!=3)
+		{
+			cmFuncs.logRecords("Error in xlRealSarProc model",0);
+			return ERROR_MODEL;
+		}
+		
+		string rtPath(strDest);
+
+		GMTIModel GMTIMd(dataAr,strDest);
+
+		muInfo mmU(dataAr);
+		GMTIMd.lastPlaneLon=mmU.plane_longitude;
+		GMTIMd.lastPlaneLat=mmU.plane_latitude;
+								
+		sarGMTIAimInfo gmtiAim(dataAr,mmU.plane_longitude,mmU.plane_latitude);	
+
+		GMTIMd.gmtiAimPt=&gmtiAim;
+		cmFuncs.logRecords("SarGMTIInfoTrans1.outPutTxtInfo()",1);
+		GMTIMd.outPutTxtInfo();
+		cmFuncs.logRecords("SarGMTIInfoTrans1.outPutGMTIData()",1);
+		GMTIMd.outPutGMTIData();
+
+		return 0;
+
+	}
+	
+/*end***********************************************************************************************************************/
+
+/*start**离线处理接口*************************************************************************************************************/
+	//@函数作用：
+	 //      ** 生成Sar图像和参数
+	 extern "C" _declspec(dllexport) int _stdcall infoRestore(char * strSource,char *strDest)
+	{
+		int tempI=0;
+
+		int hdLen=512;//帧头有512个字节
+		string rtStr(strDest);
+		FILE * FL=fopen(strSource,"rb");
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;	
+		endMark=cmFuncs.searchHeadPosition(FL);	 
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+		 while(endMark==0)
+		 {
+	
+			 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+
+			 if(fdRes<hdLen)
+		     {//读取值小于512
+				return ERROR_Search;
+			 }
+
+
+			 int skRes=_fseeki64(FL,-1*hdLen,SEEK_CUR);
+			 //int skRes=fseek(FL,-1*hdLen,SEEK_CUR);
+
+			 //UINT64 bt=_ftelli64(FL);
+			 //cmFuncs.logRecords("after seek=",(double)bt);
+			 
+			 tempI++;
+
+			 cmFuncs.logRecords("num=",tempI);
+
+			 int rgPoints=cmFuncs.getRangePoints(headerAr);
+ 
+			  UINT32  lenFrame=rgPoints*hdLen+512;
+			  arFrame=new UINT8[lenFrame];
+
+
+			 //bs=_ftelli64(FL);
+			 //cmFuncs.logRecords("b read=",(double)bs);
+
+			 memset(arFrame,sizeof(UINT8),lenFrame);
+
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+
+			 /*UINT64 tt=_ftelli64(FL);
+			 cmFuncs.logRecords("a read=",(double)tt);
+			 tt=_ftelli64(FL);
+			 cmFuncs.logRecords("a b  read=",(double)(tt-bs));*/
+
+			 //cmFuncs.logRecords("error=",ferror(FL));
+			 //cmFuncs.logRecords("ar[0]",arFrame[0]);
+			 //cmFuncs.logRecords("ar[1]",arFrame[1]);
+
+			 /*UINT64 pp=_ftelli64(FL);
+
+			 double ps=(double)pp/15204864.0;*/
+
+			 //cmFuncs.logRecords("pp=",(double)pp);
+			 //cmFuncs.logRecords("position=",ps);
+			 
+			 
+			 if(fdRes<lenFrame)
+			 {
+				 
+				 break;
+			 }
+
+			sarModel sarMl(arFrame,rtStr);	
+			sarMl.outPutSarInfo();	
+
+			imgProcConrolSt procSt;
+			procSt.blAlCor=true;
+			/*imgProc imgCon(arFrame,rtStr);
+			imgCon.creatTif();*/
+
+			cmFuncs.logRecords("start create tiff",0);
+			creatTIFF1(arFrame,strDest,lenFrame,procSt);
+			cmFuncs.logRecords("end create tiff",0);
+			//endMark=cmFuncs.searchHeadPosition(FL);
+		   // cmFuncs.logRecords("endMark=",endMark);
+
+			endMark=feof(FL);
+			delete []arFrame;
+		 }	
+		 fclose(FL);
+	  return 0;
+	}
+	  //sar图像预处理 
+	    //参数说明：图像源文件  参数源文件 目标文件
+	 extern "C" _declspec(dllexport) void _stdcall imagePreProcOut(char * strImage,char * strDest,imageProcParsST procPars)
+	 {
+		imgProc imageProc;
+		imageProc.allImageProMethod(strImage,strDest,procPars);
+	 }
+	 //sarGMTI gyGMTI dat文件信息还原
+	 extern "C" _declspec(dllexport) int _stdcall gmtiDatRestore(char * strSource,char *strDest,stGMTIProcContent prcCont)
+	  {
+		static int iiCnt=0;
+
+		int hdLen=1024;//sar-gmti和广域GMTI的点迹帧头有1024个字节
+		string rtStr(strDest);
+		UINT32 step=1024*64*512;//搜索步长，可以根据需要定义
+		//实际帧长度
+		UINT32  lenFrame=0;
+
+		FILE * FL=fopen(strSource,"rb");
+
+		int pp=ftell(FL);
+
+		UINT8 *searchBuffer=new UINT8[step];
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;		
+		while(endMark==0)
+		{
+		  UINT32 rdState=fread(searchBuffer,sizeof(UINT8),step,FL);
+
+		  if(rdState<hdLen)
+		  {
+			  return 0;
+		  }
+
+		  int re=cmFuncs.getHeadPosition(searchBuffer,rdState);
+
+		 if(re!=-1)
+		  {
+			 fseek(FL,re-rdState,SEEK_CUR);	
+			 break;
+		  }
+		  else 
+		  {
+				//防止帧头标志位处于两帧分割之间
+				fseek(FL,-1*HD_LEN,SEEK_CUR);
+		  }	 
+		}
+
+		
+		 while(endMark==0)
+	   {
+	   
+		  //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 fseek(FL,-1*hdLen,SEEK_CUR);
+		 if(fdRes<hdLen)//读取值小于帧头长度
+		 {
+			return ERROR_Search;
+		 }
+
+		 //gMTIInfoTrans1(headerAr,strDest,512);
+		 int md=cmFuncs.getSarModel(headerAr);
+
+		 if(md==4)
+		 {
+				int aimsNumIntTemp=cmFuncs.getNewGYAimsNum(headerAr);
+
+				if(aimsNumIntTemp<0)
+				{
+					//cmFuncs.logRecords("新广域GMTIAimNums：",aimsNumIntTemp);
+					continue;
+				}
+
+				int aimsParsLen=0;
+
+				if((aimsNumIntTemp*12)%512!=0)
+				{
+				  aimsParsLen=((int)((aimsNumIntTemp*12)/512)+1)*512;
+				}
+				else
+				{
+				  aimsParsLen=aimsNumIntTemp*12;
+				}
+
+				lenFrame=aimsParsLen+5120;
+
+				arFrame=new UINT8[lenFrame];
+	  
+				fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+
+				if(fdRes<lenFrame)
+				{
+				  break;
+				}
+
+		    }//end of mode==4
+		    else if(md==3)//sarGMTI模式
+		    {
+				//读取目标信息
+				lenFrame=hdLen+10*8192;
+				arFrame=new UINT8[lenFrame];
+				memset(arFrame,sizeof(UINT8),lenFrame);
+				int fdAimRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+				if(fdAimRes<lenFrame)
+				  {		
+					  break;
+				  }
+				//UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+		    }
+		    else 
+		    {
+			   continue;
+		    }
+
+			if(lenFrame>0)
+			{
+				gMTIInfoTrans1(arFrame,strDest,lenFrame);
+			}
+
+
+
+			if(arFrame!=NULL)
+			{
+				delete []arFrame;
+				arFrame==NULL;
+			}
+
+		    cmFuncs.searchHeadPosition(FL);
+
+			endMark=feof(FL);
+
+		 }
+		  
+		iiCnt++;
+		//cmFuncs.logRecords("新广域GMTI计数：",iiCnt);
+
+		if(searchBuffer!=NULL)
+		{
+			delete []searchBuffer;
+			searchBuffer=NULL;
+		}
+
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+			headerAr=NULL;
+		}
+
+		 fclose(FL);
+
+		return 0;
+	  }
+	 //6所格式的dat文件生成txt
+	 extern "C" _declspec(dllexport) void _stdcall gmti6SuoDatRestore(char * strSource,char *strDest,stGMTIProcContent prcCont)
+	  {
+		static int iCount=0;
+		char   chArCount[64];
+		int lenHd=HD_LEN*3;
+		UINT8 searchBuffer[HD_LEN*3];
+		FILE * FL=fopen(strSource,"rb");
+		memset(searchBuffer,sizeof(UINT8),lenHd);
+		UINT32 rdState=fread(searchBuffer,sizeof(UINT8),lenHd,FL);
+		if(rdState<HD_LEN)
+		{
+			fclose(FL);
+			return;
+		}
+
+		commonFuncs cmFuncs;
+		int hdPs=cmFuncs.getHead6SuoDatePosition(searchBuffer,lenHd);
+		if(hdPs!=0)
+		{
+			fclose(FL);
+			return;
+		}
+
+		int frameLen=cmFuncs.getHead6SuoDateFrameLen(searchBuffer);
+		fseek(FL,-1*HD_LEN*3,SEEK_CUR);
+
+		while(feof(FL)==0)
+		{
+			UINT8 *Ar=new UINT8[frameLen];
+
+			memset(Ar,sizeof(UINT8),frameLen);
+
+			int rdRes=fread(Ar,sizeof(UINT8),frameLen,FL);
+
+			if(rdRes<frameLen)
+			{
+				delete []Ar;
+				fclose(FL);
+				return;
+			}
+
+			dat6CommonInfo dt6Cl(Ar);
+
+			if(prcCont.blSingle==true)
+			{
+				string pathSTxt(strDest);
+				pathSTxt.append("mp.txt");
+				FILE * FLSingleTxt=fopen(pathSTxt.c_str(),"a");
+
+				dt6Cl.output(FLSingleTxt);
+
+				fclose(FLSingleTxt);
+			}
+
+			if(prcCont.blMultiple==true)
+			{
+				
+				sprintf_s(chArCount,"%04d",iCount);	
+				string pathMTxt(strDest);
+				pathMTxt.append("mp");
+				pathMTxt.append(chArCount);
+				pathMTxt.append(".txt");
+
+				FILE * FLMTxt=fopen(pathMTxt.c_str(),"w");
+
+				dt6Cl.output(FLMTxt);
+
+				fclose(FLMTxt);
+				iCount++;
+			}
+
+
+
+			delete []Ar;
+
+			memset(searchBuffer,sizeof(UINT8),lenHd);
+			UINT32 rdState=fread(searchBuffer,sizeof(UINT8),lenHd,FL);
+			if(rdState<HD_LEN)
+			{
+				fclose(FL);
+				return;
+			}
+
+			hdPs=cmFuncs.getHead6SuoDatePosition(searchBuffer,lenHd);
+			if(hdPs!=0)
+			{
+				fclose(FL);
+				return;
+			}
+
+			frameLen=cmFuncs.getHead6SuoDateFrameLen(searchBuffer);
+			fseek(FL,-1*HD_LEN*3,SEEK_CUR);
+
+		}
+
+	  }
+	  //@函数作用：
+	 //      ** 生成SarGMTI的图像和参数
+	 extern "C" _declspec(dllexport) int _stdcall SarGMTIInfoTrans(char * strSource, char *strDest)
+	{
+		int hdLen=512;//sar-gmti点迹帧头有1024个字节,图像有512字节
+		int aimHdLen=1024;
+		string rtStr(strDest);
+		
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+
+		FILE * FL=fopen(strSource,"rb");
+		commonFuncs cmFuncs;	
+		int endMark=cmFuncs.searchHeadPositionX64(FL);	  
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+
+	 int cntTemp=0;
+
+	 while(endMark==0)
+		 {
+		 //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 _fseeki64(FL,-1*hdLen,SEEK_CUR);
+
+		 if(fdRes<hdLen)//读取值小于帧头长度
+			return ERROR_Search;
+
+		 bool ifAimTemp=cmFuncs.getIfSarGmtiAim(headerAr);
+		 UINT32  lenFrame;
+
+		 if(ifAimTemp)
+		 {
+			 lenFrame=aimHdLen+10*8192;
+		 }
+		 else
+		 {
+			 int rgPoints=cmFuncs.getRangePoints(headerAr);
+		     lenFrame=rgPoints*hdLen+hdLen;
+		 }
+		 
+		     arFrame=new UINT8[lenFrame];
+	  
+		 
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+			 if(fdRes<lenFrame)
+			 {
+				 if(arFrame!=NULL)
+				 {
+				 delete [] arFrame;
+				 arFrame=NULL;
+				 }
+				 break;
+			 }
+
+			 //UINT32 tt=cmFuncs.getPRFNum(arFrame);
+			 /*cmFuncs.logRecords("this is",cntTemp);*/
+			 //cmFuncs.logRecords("prf:",(double)tt);
+			 //cntTemp++;
+             //cmFuncs.logRecords("sar-GMTI:",cntTemp);
+
+			    GMTIModel GMTIMd(arFrame,rtStr);
+				GMTIMd.outPutGMTIInfo();
+
+
+				/*if(cmFuncs.getIfSarGmtiAim(arFrame)==false)
+				{
+				imgProcConrolSt procControl;
+				procControl.blOriginal=true;
+				creatTIFF1(arFrame,strDest,lenFrame,procControl);
+				}*/
+		 		
+				endMark=cmFuncs.searchHeadPositionX64(FL);	
+
+			    cmFuncs.logRecords("************spliter*************",cntTemp);
+				
+				if(arFrame!=NULL)
+				{
+				 delete [] arFrame;
+				 arFrame=NULL;
+				}
+
+		  }
+	      
+		
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+			headerAr=NULL;
+		}
+
+		if(arFrame!=NULL)
+		{
+			delete []arFrame;
+			arFrame=NULL;
+		}
+
+		 fclose(FL);
+		 return 0;
+	
+	}
+	 //还原点迹信息 文本或者dat文件
+	 extern "C" _declspec(dllexport) int _stdcall SarGMTIAimDatOrTxtGen(char * strSource,const char *strDest,stGMTIProcContent prcCont)
+	{
+		int hdLen=512;//sar-gmti点迹帧头有1024个字节,图像有512字节
+		int aimHdLen=1024;
+		string rtStr(strDest);
+		
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+
+		FILE * FL=fopen(strSource,"rb");
+		commonFuncs cmFuncs;	
+		int endMark=cmFuncs.searchHeadPositionX64(FL);	  
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+
+	 int cntTemp=0;
+
+	 while(endMark==0)
+		 {
+		 //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 _fseeki64(FL,-1*hdLen,SEEK_CUR);
+
+		 if(fdRes<hdLen)//读取值小于帧头长度
+			return ERROR_Search;
+
+		 bool ifAimTemp=cmFuncs.getIfSarGmtiAim(headerAr);
+		 UINT32  lenFrame;
+
+		 if(ifAimTemp)
+		 {
+			 lenFrame=aimHdLen+10*8192;
+		 }
+		 else
+		 {
+			 int rgPoints=cmFuncs.getRangePoints(headerAr);
+		     lenFrame=rgPoints*hdLen+hdLen;
+		 }
+		 
+		     arFrame=new UINT8[lenFrame];
+	  
+		 
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+			 if(fdRes<lenFrame)
+			 {
+				 if(arFrame!=NULL)
+				 {
+				 delete [] arFrame;
+				 arFrame=NULL;
+				 }
+				 break;
+			 }
+
+			    GMTIModel GMTIMd(arFrame,rtStr);
+
+				if(prcCont.blTxt)
+				{
+				  GMTIMd.outPutTxtInfo();
+				}
+				if(prcCont.blDat)
+				{
+				  GMTIMd.outPutGMTIData();
+				}
+
+				endMark=cmFuncs.searchHeadPositionX64(FL);	
+
+				if(arFrame!=NULL)
+				{
+				 delete [] arFrame;
+				 arFrame=NULL;
+				}
+
+		  }
+	      
+		
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+			headerAr=NULL;
+		}
+
+		if(arFrame!=NULL)
+		{
+			delete []arFrame;
+			arFrame=NULL;
+		}
+
+		 fclose(FL);
+		 return 0;
+	
+	}
+	 //20151116 经纬度定位需要图像信息
+	 extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMark(char *strImageFolder,char *strAim,const char *strDest,stGMTIProcContent prcCont1)
+	{
+		        static int loopNum=0;
+		        int hdLen=512;//帧头有512个字节
+		        int hdAimLen=1024;//帧头有1024个字节
+
+		        queue<std::string> fls;
+				WIN32_FIND_DATA FindData;
+                HANDLE hError;
+
+				char FilePathName[1024];
+				// 构造路径
+				char FullPathName[1024];
+				strcpy(FilePathName,strImageFolder);
+				strcat(FilePathName, "\\*.*");
+
+				 hError = ::FindFirstFile(FilePathName, &FindData);
+				 if (hError == INVALID_HANDLE_VALUE)
+				 {
+				  return;
+				 }
+
+				 while(::FindNextFile(hError, &FindData))
+				 {
+					 string str(FindData.cFileName);
+
+					 if(str.size()>4 && (str.substr(str.size()-4,4)==".raw"))
+					 {
+						 fls.push(str);
+					 //fls.push_back(str);
+					 }
+				 }
+		//图像文件
+				 if(fls.empty())
+				 {
+					 return;
+				 }
+
+		        string flFolder(strImageFolder);
+				string ss=fls.front();		
+				fls.pop();
+				string imageFl=flFolder+"\\"+ss;
+			   //图像文件
+				FILE * FLImage=fopen(imageFl.c_str(),"rb");
+				UINT8 *headerImageAr=new UINT8[hdLen];
+				UINT8 *arImageFrame;
+				//图像数组大小
+				UINT32 imageArSize;
+				int endMarkImage=feof(FLImage);
+				commonFuncs cmFuncs;	
+				endMarkImage=cmFuncs.searchHeadPosition(FLImage);
+				if(endMarkImage!=0)
+				{
+				   delete []headerImageAr;
+				   headerImageAr=NULL;
+
+				   fclose(FLImage);
+				   return;  
+				}
+		 //读取图像信息
+			 //第一次
+			 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+			 UINT32 prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+			 int mView=cmFuncs.getMViewNum(headerImageAr);
+			 int picsNum=64/mView;
+			 int rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+			 UINT32  lenImageFrame=rgPoints*hdLen;
+			 imageArSize=lenImageFrame*picsNum;
+			 arImageFrame=new UINT8[imageArSize];
+			 memset(arImageFrame,sizeof(UINT8),imageArSize);           
+			 int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+			 //int arImgActualLen=1;
+			 fclose(FLImage);
+			 if(fdImageRes<lenImageFrame)
+			  {	 
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+			    	
+					return;
+			   }
+
+				//目标文件	
+				FILE * FLAim=fopen(strAim,"rb");
+				int endAimMark=feof(FLAim);
+				endAimMark=cmFuncs.searchHeadPosition(FLAim);
+				//没有搜索到，但已经到文件尾
+				if(endAimMark!=0)
+				{
+					delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+					fclose(FLAim);
+					return;
+				}
+
+		//读取目标信息
+			UINT32  lenAimFrame=hdAimLen+10*8192;;  // add by zhang : TODO lenAimFrame will change size in future
+			UINT8 * arAimFrame=new UINT8[lenAimFrame];
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		    int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+			if(fdAimRes<lenAimFrame)
+			  {		
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+
+					delete []arAimFrame;
+				    arAimFrame=NULL;
+
+				 return;
+			  }
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+			//
+			imgProc procImg;	
+			SAR_VS_params stPars;
+			
+			/* ==== add by zhang : reset power on time ==== */
+			static int lastPowerOnTime = -1;
+			int currentPowerOnTime = cmFuncs.getPowerOnTime(arAimFrame);
+			if(currentPowerOnTime != lastPowerOnTime){
+				lastPowerOnTime = currentPowerOnTime;
+				loopNum = 0;
+			}
+			/* ============================================= */
+
+			do
+			{
+				cmFuncs.logRecords("*************************************loopNum",loopNum);
+			   					
+				while(prfCntAim>prfCntImage)
+				{
+				    string rtPahtProc(strDest);
+					string flPath=rtPahtProc.append(cmFuncs.getMarkPicName(headerImageAr,loopNum)+".tif");
+					procImg.SAR_VS_params_init(stPars);
+					stPars.output_file_name=flPath;
+					stPars.tifParams.dataMat=arImageFrame;
+					stPars.tifParams.dtHeight=512;
+					stPars.tifParams.dtWidth=rgPoints;
+					GMTIModel GMTIMd(headerImageAr,strDest);
+					//输出图像的txt文本信息， 与点迹的txt文本信息区别
+					GMTIMd.outPutGMTIInfo(loopNum);
+					cmFuncs.logRecords("**start create single tiff",1);
+					procImg.Local_Funcs1(stPars);
+					loopNum++;
+					cmFuncs.logRecords("**end create single tiff",1);
+					if(fls.empty())
+						{
+							//有可能最后一幅图像不能生成 在大循环后边,可根据数组实际长度进行判断
+							break;
+						}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+					fclose(FLImage);					
+				}
+
+				if(prfCntAim<prfCntImage)
+				{		
+						cmFuncs.searchHeadPositionX64(FLAim);
+						if(feof(FLAim))
+						{
+							string rtPahtProc(strDest);
+							string flPath=rtPahtProc.append(cmFuncs.getMarkPicName(headerImageAr,loopNum)+".tif");
+							procImg.SAR_VS_params_init(stPars);
+							stPars.output_file_name=flPath;
+							stPars.tifParams.dataMat=arImageFrame;
+							stPars.tifParams.dtHeight=512;
+							stPars.tifParams.dtWidth=rgPoints;
+							GMTIModel GMTIMd(headerImageAr,strDest);
+							//输出图像的txt文本信息， 与点迹的txt文本信息区别
+							GMTIMd.outPutGMTIInfo(loopNum);
+							cmFuncs.logRecords("**start create single tiff",1);
+							procImg.Local_Funcs1(stPars);
+							loopNum++;
+							cmFuncs.logRecords("**end create single tiff",1);
+							continue;
+					}
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{
+					    continue;
+					}
+					UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+				 }//点迹的PRF计数和图像的PRF计数相通
+				else
+				{
+				    /*int aimNumTemp=gmtiAim.aimsNum;
+
+					cmFuncs.logRecords("目标个数",(double)aimNumTemp);*/
+
+					/*if(aimNumTemp>1&&aimNumTemp<8192)
+					{*/
+
+					string strMergeName=strDest+cmFuncs.getMarkPicName(arAimFrame,loopNum)+".tiff";					 
+
+						for(int k=1;k<picsNum;k++)
+						{
+								if(fls.empty())
+								{
+								   break;
+								}
+								ss=fls.front();		
+								fls.pop();
+								imageFl=flFolder+"\\"+ss;
+								FLImage=fopen(imageFl.c_str(),"rb");
+								fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+								int tempLoop=cmFuncs.getPRFNum(headerImageAr);
+								fdImageRes=fread(&(arImageFrame[k*lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);
+								fclose(FLImage);	
+
+								cmFuncs.logRecords("k++++++++++++++++++",(double)k);
+						}
+						//
+						GMTIModel GMTIMd(arAimFrame,strDest);
+						muInfo mmU(headerImageAr);
+						GMTIMd.lastPlaneLon=mmU.plane_longitude;
+						GMTIMd.lastPlaneLat=mmU.plane_latitude;
+								
+				        sarGMTIAimInfo gmtiAim(arAimFrame,mmU.plane_longitude,mmU.plane_latitude);	
+
+						GMTIMd.gmtiAimPt=&gmtiAim;
+
+						int aimNumTemp=gmtiAim.aimsNum;
+
+						long *aimAzPts=new long[aimNumTemp];
+						long *aimRgPts=new long[aimNumTemp];
+
+						for(int p=0;p<aimNumTemp;p++)
+						{
+							aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+						    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+						}
+				       //   
+						
+						int pathLen=strMergeName.length()+1;
+						char * pathMark=new char[pathLen];
+						memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+						if(prcCont1.blDat==true)
+						{
+							GMTIMd.outPutGMTIData();
+						}
+
+						if(prcCont1.blTxt==true)
+						{
+					      //输出图像的txt文本信息， 与点迹的txt文本信息区别
+//						  GMTIMd.outPutGMTIInfo(loopNum);
+
+							/* ==== modify by zhang : add width and height information ==== */
+							GMTIMd.outPutGMTIInfo(loopNum, rgPoints, picsNum * 512);
+							/* ============================================================ */
+						}
+
+						formGIFFromFengJinCl sarGmtiMergeCl;
+						cmFuncs.logRecords("Merge start:",(double)loopNum);
+						sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImageFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,512*picsNum,gmtiAim.aimsNum);
+						cmFuncs.logRecords("Merge Complete:",(double)loopNum);
+						
+						loopNum++;
+						if(aimAzPts!=NULL)
+							{
+								delete []aimAzPts;
+								aimAzPts=NULL;
+							}
+						if(aimRgPts!=NULL)
+						{
+							delete []aimRgPts;
+							aimRgPts=NULL;
+						}
+
+					// }
+					//else//只生成图像
+					//{
+					//	    string rtPahtProc(strDest);
+					//		string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+					//		procImg.SAR_VS_params_init(stPars);
+					//		stPars.output_file_name=flPath;
+					//		stPars.tifParams.dataMat=arImageFrame;
+					//		stPars.tifParams.dtHeight=512;
+					//		stPars.tifParams.dtWidth=rgPoints;
+					//		GMTIModel GMTIMd(headerImageAr,strDest);
+					//		//输出图像的txt文本信息， 与点迹的txt文本信息区别
+					//		GMTIMd.outPutGMTIInfo(loopNum);
+					//		cmFuncs.logRecords("**start create single tiff",1);
+					//		procImg.Local_Funcs1(stPars);
+					//		loopNum++;
+					//		cmFuncs.logRecords("**end create single tiff",1);
+					//}
+
+					//搜索下一个点迹帧
+					endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					
+					if(fdAimRes != lenAimFrame)break;  // add by zhang : FLAim missing frame
+					
+					prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+					if(fls.empty())
+					{
+						break;
+					}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					
+					memset(headerImageAr,sizeof(UINT8),hdLen);
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+					lenImageFrame=rgPoints*hdLen;
+					imageArSize=lenImageFrame*picsNum;
+					if(arImageFrame!=NULL)
+					{
+						delete []arImageFrame;
+						arImageFrame=NULL;
+					}
+					arImageFrame=new UINT8[imageArSize];
+					memset(arImageFrame,sizeof(UINT8),imageArSize);           
+					int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);	
+					fclose(FLImage);
+					if(fls.empty())
+					{
+						continue;
+					}
+
+				}//end if
+
+			}
+			while(!fls.empty());
+
+
+		if(arAimFrame!=NULL)
+		{
+			delete []arAimFrame;
+			arAimFrame=NULL;
+		}
+
+		if(headerImageAr!=NULL)
+		{
+			delete []headerImageAr;
+			headerImageAr=NULL;
+		}
+						
+		fclose(FLAim);
+		return;
+	}	 
+     //sarGMTI回读处理
+	 extern "C" _declspec(dllexport) void _stdcall sarGMTOfflineProc(char *strImageFolder,char *strAim,char *strDest,stGMTIProcContent prcCont)    
+	{		
+		 /*string strAimDest(strDest);
+		 strAimDest=strAimDest+"\\Aims\\";
+		 SarGMTIAimDatOrTxtGen(strAim,strAimDest.c_str(),prcCont);*/
+
+		 /*string strImgDest(strDest);
+		 strImgDest=strImgDest+"\\Images\\";*/
+		 SarGMTIMergeMark(strImageFolder,strAim,strDest,prcCont); 
+	}
+     
+	 //广域GMTI回读处理
+	 extern "C" _declspec(dllexport) int _stdcall NewGgmtiOfflineProc(char * strSource,char *strDest,stGMTIProcContent prcCont)
+	{
+		static int iiCnt=0;
+
+		int hdLen=1024;//sar-gmti帧头有1024个字节
+		string rtStr(strDest);
+		UINT32 step=1024*64*512;//搜索步长，可以根据需要定义
+		FILE * FL=fopen(strSource,"rb");
+
+		int pp=ftell(FL);
+
+		UINT8 *searchBuffer=new UINT8[step];
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;		
+		while(endMark==0)
+		{
+		  UINT32 rdState=fread(searchBuffer,sizeof(UINT8),step,FL);
+		  int re=cmFuncs.getHeadPosition(searchBuffer,rdState);
+
+		 if(re!=-1)
+		  {
+			 fseek(FL,re-rdState,SEEK_CUR);	
+			 break;
+		  }
+		  else 
+		  {
+			 // if(re>0)
+			 // {
+				////防止帧头标志位处于两帧分割之间
+				//fseek(FL,-1*HD_LEN,SEEK_CUR);
+			 // }
+		  }	 
+		  endMark=feof(FL);
+		}
+
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+		
+		 while(endMark==0)
+	   {
+	   
+		  //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 fseek(FL,-1*hdLen,SEEK_CUR);
+		 if(fdRes<hdLen)//读取值小于帧头长度
+		 {
+			return ERROR_Search;
+		 }
+
+		 //gMTIInfoTrans1(headerAr,strDest,512);
+		 int md=cmFuncs.getSarModel(headerAr);
+
+		 if(md!=4)
+		 {
+			cmFuncs.searchHeadPosition(FL);
+			endMark=feof(FL);
+
+			if(endMark==0)
+			{
+				continue;
+			}
+			else
+			{
+			    return ERROR_MODEL;
+			}
+		 }
+		  
+		iiCnt++;
+		//cmFuncs.logRecords("新广域GMTI计数：",iiCnt);
+
+		int aimsNumIntTemp=cmFuncs.getNewGYAimsNum(headerAr);
+
+		if(aimsNumIntTemp<0)
+		{
+			aimsNumIntTemp=SBAIMNUM;
+			//cmFuncs.logRecords("新广域GMTIAimNums：",aimsNumIntTemp);
+		}
+
+		int aimsParsLen=0;
+
+		if((aimsNumIntTemp*12)%512!=0)
+		{
+            aimsParsLen=((int)((aimsNumIntTemp*12)/512)+1)*512;
+		}
+		else
+		{
+			aimsParsLen=aimsNumIntTemp*12;
+		}
+
+		//int aimsParsLen=((int)((aimsNumIntTemp*12)/256)+1)*256;
+
+		 UINT32  lenFrame=aimsParsLen+5120;
+		 arFrame=new UINT8[lenFrame];
+	  
+		 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+
+		 if(fdRes<lenFrame)
+		 {
+			break;
+		 }
+
+		 		GY_GMTIModel Gy_GMTIMd(arFrame,rtStr);
+
+				if(prcCont.blMultiple)
+				{
+					Gy_GMTIMd.output_NewGY_TxtInfo();
+				}
+				
+			    Gy_GMTIMd.outPut_NewGY_DatInfo();
+
+				Gy_GMTIMd.outPut_NewGY_LineInfo(prcCont);
+
+				cmFuncs.searchHeadPosition(FL);
+				endMark=feof(FL);
+				delete [] arFrame;
+
+		}
+	      
+
+		if(searchBuffer!=NULL)
+		{
+			delete []searchBuffer;
+		}
+
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+		}
+
+
+
+		 fclose(FL);
+
+		return 0;
+	}
+
+	 //sarGMTI回读处理
+	 extern "C" _declspec(dllexport) void _stdcall sarImageRestore(char *strImage,char *strDest)
+	 {
+		 const UINT32 LENCONST=5120*32768;
+		 FILE * FLImage=fopen(strImage,"rb");
+
+		 if(FLImage==NULL)
+		 {
+			 return;
+		 }
+
+		 UINT8 *chAr=new UINT8[LENCONST];
+		 memset(chAr,sizeof(UINT8),LENCONST);
+		 int rdLen=fread(chAr,sizeof(UINT8),LENCONST,FLImage);
+		 fclose(FLImage);
+		 infoRestore1(chAr,strDest,rdLen);
+
+		 imgProcConrolSt parSt;
+		 parSt.blAlCor=true;
+
+		 creatTIFF1(chAr,strDest,rdLen,parSt);
+
+		 delete []chAr;
+
+	 }
+	
+/*end***************************************************************************************/
+
+/**测试接口**********************************************************************/
+	 //20151113 进行升级 sarGMTI实传测试
+	 extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMarkTest(char *strImageFolder,char *strAim,char *strDest)
+	{
+		        static int loopNum=0;
+		        int hdLen=512;//帧头有512个字节
+		        int hdAimLen=1024;//帧头有1024个字节
+
+		        queue<std::string> fls;
+				WIN32_FIND_DATA FindData;
+                HANDLE hError;
+
+				char FilePathName[1024];
+				// 构造路径
+				char FullPathName[1024];
+				strcpy(FilePathName,strImageFolder);
+				strcat(FilePathName, "\\*.*");
+
+				 hError = ::FindFirstFile(FilePathName, &FindData);
+				 if (hError == INVALID_HANDLE_VALUE)
+				 {
+				  return;
+				 }
+
+				 while(::FindNextFile(hError, &FindData))
+				 {
+					 string str(FindData.cFileName);
+
+					 if(str.size()>4 && (str.substr(str.size()-4,4)==".raw"))
+					 {
+						 fls.push(str);
+					 //fls.push_back(str);
+					 }
+				 }
+		       //图像文件
+				 if(fls.empty())
+				 {
+					 return;
+				 }
+		        string flFolder(strImageFolder);
+				string ss=fls.front();		
+				//fls.pop();
+				string imageFl=flFolder+"\\"+ss;
+			   //图像文件
+				FILE * FLImage=fopen(imageFl.c_str(),"rb");
+				commonFuncs cmFuncs;	
+				int endMark=cmFuncs.searchHeadPosition(FLImage);
+				if(endMark!=0)
+				{				  
+				   fclose(FLImage);
+				   return;  
+				}
+		 //读取图像信息
+			 //第一次
+			 UINT8 hdImg[512];			 
+			 fread(hdImg,sizeof(UINT8),hdLen,FLImage);	
+			 fclose(FLImage);
+			 int rgPoints=cmFuncs.getRangePoints(hdImg);             
+			 UINT32  lenImageFrame=rgPoints*hdLen+hdLen;			
+			 UINT8 *ImageAr=new UINT8[lenImageFrame];
+			
+			while(!fls.empty())
+			{
+
+				    string	ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					fread(ImageAr,sizeof(UINT8),lenImageFrame,FLImage);
+					fclose(FLImage);					
+
+					sarGMTIInfoRealMerge(ImageAr,strDest,strAim,lenImageFrame);
+			}
+
+			if(ImageAr!=NULL)
+			{
+				delete []ImageAr;
+				ImageAr=NULL;
+			}
+
+		return;
+	}
+ 
+	 //sarGMTI实传测试处理
+	 extern "C" _declspec(dllexport) void _stdcall sarGMTOfflineProc1(char *strImageFolder,char *strAim,char *strDest,stGMTIProcContent prcCont)    
+	{
+		
+		 string strImgDest(strDest);
+		 strImgDest=strImgDest+"\\Images\\";
+		 char chPP[1024];
+		 strcpy(chPP,strImgDest.c_str());
+		 SarGMTIMergeMarkTest(strImageFolder,strAim,chPP); 
+	}
+
+	 extern "C" _declspec(dllexport) void _stdcall udpTest(char * data)
+	{
+		/*GYAimInfo uTest;		
+		uTest.sendData(data);*/	
+	}
+
+	//20151112 进行升级 sarGMTI数据格式变化 生成大图
+	//以图像为基准，即使点迹文件遍历完成，此函数一样生成图像
+	//函数缺陷： 如果图像帧丢失，算法将会紊乱；
+	//          
+	extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMarkUpDate(char *strImageFolder,char *strAim,char *strDest)
+	{
+		        static int loopNum=0;
+		        int hdLen=512;//帧头有512个字节
+		        int hdAimLen=1024;//帧头有512个字节
+
+		        queue<std::string> fls;
+				WIN32_FIND_DATA FindData;
+                HANDLE hError;
+
+				char FilePathName[1024];
+				// 构造路径
+				char FullPathName[1024];
+				strcpy(FilePathName,strImageFolder);
+				strcat(FilePathName, "\\*.*");
+
+				 hError = ::FindFirstFile(FilePathName, &FindData);
+				 if (hError == INVALID_HANDLE_VALUE)
+				 {
+				  return;
+				 }
+
+				 while(::FindNextFile(hError, &FindData))
+				 {
+					 string str(FindData.cFileName);
+
+					 if(str.size()>4 && (str.substr(str.size()-4,4)==".raw"))
+					 {
+						 fls.push(str);
+					 //fls.push_back(str);
+					 }
+				 }
+		//图像文件
+				 if(fls.empty())
+				 {
+					 return;
+				 }
+
+		        string flFolder(strImageFolder);
+				string ss=fls.front();		
+				fls.pop();
+				string imageFl=flFolder+"\\"+ss;
+			   //图像文件
+				FILE * FLImage=fopen(imageFl.c_str(),"rb");
+				UINT8 *headerImageAr=new UINT8[hdLen];
+				UINT8 *arImageFrame;
+				//图像数组大小
+				UINT32 imageArSize;
+				int endMarkImage=feof(FLImage);
+				commonFuncs cmFuncs;	
+				endMarkImage=cmFuncs.searchHeadPosition(FLImage);
+				if(endMarkImage!=0)
+				{
+				   delete []headerImageAr;
+				   headerImageAr=NULL;
+
+				   fclose(FLImage);
+				   return;  
+				}
+		 //读取图像信息
+			 //第一次
+			 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+			 UINT32 prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+			 int mView=cmFuncs.getMViewNum(headerImageAr);
+			 int picsNum=64/mView;
+			 int rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+			 UINT32  lenImageFrame=rgPoints*hdLen;
+			 imageArSize=lenImageFrame*picsNum;
+			 arImageFrame=new UINT8[imageArSize];
+			 memset(arImageFrame,sizeof(UINT8),imageArSize);           
+			 int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+			 int arImgActualLen=1;
+			 fclose(FLImage);
+			 if(fdImageRes<lenImageFrame)
+			  {	 
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+			    	
+					return;
+			   }
+
+				//目标文件	
+				FILE * FLAim=fopen(strAim,"rb");
+				int endAimMark=feof(FLAim);
+				endAimMark=cmFuncs.searchHeadPosition(FLAim);
+				//没有搜索到，但已经到文件尾
+				if(endAimMark!=0)
+				{
+					delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+					fclose(FLAim);
+					return;
+				}
+
+		//读取目标信息
+			UINT32  lenAimFrame=hdAimLen+10*8192;;
+			UINT8 * arAimFrame=new UINT8[lenAimFrame];
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		    int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+			if(fdAimRes<lenAimFrame)
+			  {		
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+
+					delete []arAimFrame;
+				    arAimFrame=NULL;
+
+				 return;
+			  }
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+			//
+			imgProc procImg;	
+			SAR_VS_params stPars;
+
+			do
+			{
+				//首先生成点迹信息
+				sarGMTIAimInfo gmtiAim(arAimFrame);				   					
+				while(prfCntAim>prfCntImage)
+				{
+					if(arImgActualLen==picsNum)
+					{
+						string rtPahtProc(strDest);
+						string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+						procImg.SAR_VS_params_init(stPars);
+						stPars.output_file_name=flPath;
+						stPars.tifParams.dataMat=arImageFrame;
+						stPars.tifParams.dtHeight=512*picsNum;
+						stPars.tifParams.dtWidth=rgPoints;
+						GMTIModel GMTIMd(headerImageAr,strDest);
+						//输出图像的txt文本信息， 与点迹的txt文本信息区别
+						GMTIMd.outPutGMTIInfo(loopNum);
+						cmFuncs.logRecords("**start create single tiff",1);
+						procImg.Local_Funcs1(stPars);
+						loopNum++;
+						cmFuncs.logRecords("**end create single tiff",1);
+						//生成图像
+						arImgActualLen=0;
+					}
+
+					if(fls.empty())
+						{
+							break;
+						}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					fdImageRes=fread(&(arImageFrame[lenImageFrame*arImgActualLen]),sizeof(UINT8),lenImageFrame,FLImage);
+					arImgActualLen++;
+					fclose(FLImage);					
+				}
+
+				if(prfCntAim<prfCntImage)
+				{		
+						cmFuncs.searchHeadPositionX64(FLAim);
+						if(feof(FLAim))
+						{
+
+							if(arImgActualLen==picsNum)
+							{
+								//生成图像								
+								string rtPahtProc(strDest);
+								string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+								procImg.SAR_VS_params_init(stPars);
+								stPars.output_file_name=flPath;
+								stPars.tifParams.dataMat=arImageFrame;
+								stPars.tifParams.dtHeight=512*picsNum;
+								stPars.tifParams.dtWidth=rgPoints;
+								GMTIModel GMTIMd(headerImageAr,strDest);
+								//输出图像的txt文本信息， 与点迹的txt文本信息区别
+								GMTIMd.outPutGMTIInfo(loopNum);
+								cmFuncs.logRecords("**start create single tiff",1);
+								procImg.Local_Funcs1(stPars);
+								loopNum++;
+								cmFuncs.logRecords("**end create single tiff",1);
+								arImgActualLen=0;
+							}
+
+							if(fls.empty())
+							{
+								break;
+							}
+							ss=fls.front();		
+							fls.pop();
+							imageFl=flFolder+"\\"+ss;
+							FLImage=fopen(imageFl.c_str(),"rb");
+							fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+							prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+							fdImageRes=fread(&(arImageFrame[lenImageFrame*arImgActualLen]),sizeof(UINT8),lenImageFrame,FLImage);
+							arImgActualLen++;
+							fclose(FLImage);
+							continue;
+					}
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{
+					    continue;
+					}
+					prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+				 }//点迹的PRF计数和图像的PRF计数相通
+				else
+				{
+				    int aimNumTemp=gmtiAim.aimsNum;
+
+					//cmFuncs.logRecords("目标个数",(double)aimNumTemp);
+
+					if(aimNumTemp>1&&aimNumTemp<8192)
+					{
+
+						string strMergeName=strDest+cmFuncs.getNameByLoopNum(arAimFrame,loopNum)+".tiff";					 
+
+						for(int k=1;k<picsNum;k++)
+						{
+								if(fls.empty())
+								{
+								   break;
+								}
+								ss=fls.front();		
+								fls.pop();
+								imageFl=flFolder+"\\"+ss;
+								FLImage=fopen(imageFl.c_str(),"rb");
+								fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+								int tempLoop=cmFuncs.getPRFNum(headerImageAr);
+								fdImageRes=fread(&(arImageFrame[k*lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);
+								fclose(FLImage);								
+						}
+
+						long *aimAzPts=new long[aimNumTemp];
+						long *aimRgPts=new long[aimNumTemp];
+
+						for(int p=0;p<aimNumTemp;p++)
+						{
+							aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+						    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+						}
+				       //   
+						
+						int pathLen=strMergeName.length()+1;
+						char * pathMark=new char[pathLen];
+						memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+						formGIFFromFengJinCl sarGmtiMergeCl;
+						cmFuncs.logRecords("Merge start:",(double)loopNum);
+						sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImageFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,512*picsNum,gmtiAim.aimsNum);
+						cmFuncs.logRecords("Merge Complete:",(double)loopNum);
+
+						    loopNum++;
+						    if(aimAzPts!=NULL)
+							{
+								delete []aimAzPts;
+								aimAzPts=NULL;
+							}
+							if(aimRgPts!=NULL)
+							{
+								delete []aimRgPts;
+								aimRgPts=NULL;
+							}
+
+								//搜索下一个点迹帧
+							endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+							memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+							fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+							prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+							if(fls.empty())
+							{
+								break;
+							}
+							ss=fls.front();		
+							fls.pop();
+							imageFl=flFolder+"\\"+ss;
+							FLImage=fopen(imageFl.c_str(),"rb");
+					
+							memset(headerImageAr,sizeof(UINT8),hdLen);
+							fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+							prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+							rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+							lenImageFrame=rgPoints*hdLen;
+							imageArSize=lenImageFrame*4;
+							if(arImageFrame!=NULL)
+							{
+								delete []arImageFrame;
+								arImageFrame=NULL;
+							}
+							arImageFrame=new UINT8[imageArSize];
+							memset(arImageFrame,sizeof(UINT8),imageArSize);           
+							int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);	
+							fclose(FLImage);
+
+					 }
+					else//只生成图像
+					{
+						    // string rtPahtProc(strDest);
+							//string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+							//procImg.SAR_VS_params_init(stPars);
+							//stPars.output_file_name=flPath;
+							//stPars.tifParams.dataMat=arImageFrame;
+							//stPars.tifParams.dtHeight=512;
+							//stPars.tifParams.dtWidth=rgPoints;
+							//GMTIModel GMTIMd(headerImageAr,strDest);
+							////输出图像的txt文本信息， 与点迹的txt文本信息区别
+							//GMTIMd.outPutGMTIInfo(loopNum);
+							//cmFuncs.logRecords("**start create single tiff",1);
+							//procImg.Local_Funcs1(stPars);
+							//loopNum++;
+							//cmFuncs.logRecords("**end create single tiff",1);
+							if(fls.empty())
+							{
+								break;
+							}
+							ss=fls.front();		
+							fls.pop();
+							imageFl=flFolder+"\\"+ss;
+							FLImage=fopen(imageFl.c_str(),"rb");
+							fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+							prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+							fdImageRes=fread(&(arImageFrame[lenImageFrame*arImgActualLen]),sizeof(UINT8),lenImageFrame,FLImage);
+							arImgActualLen++;
+							fclose(FLImage);
+					}
+
+					
+				}//end if
+
+			}
+			while(!fls.empty());
+
+
+		if(arAimFrame!=NULL)
+		{
+			delete []arAimFrame;
+			arAimFrame=NULL;
+		}
+
+		if(headerImageAr!=NULL)
+		{
+			delete []headerImageAr;
+			headerImageAr=NULL;
+		}
+						
+		fclose(FLAim);
+		return;
+	}
+ 	
+/**历史版本*************************************************************/	
+//2014_07_11发现帧长不固定的现象(不是512整数倍),所以升级
+	extern "C" _declspec(dllexport) int _stdcall infoRestore_older_0711(char * strSource,char *strDest)
+	{
+		int hdLen=512;//帧头有512个字节
+		string rtStr(strDest);
+		UINT32 step=1024*64*512;
+		FILE * FL=fopen(strSource,"rb");
+
+		int pp=ftell(FL);
+
+		UINT8 *searchBuffer=new UINT8[step];
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;
+
+		while(endMark==0)
+		{
+		  UINT32 rdState=fread(searchBuffer,sizeof(UINT8),step,FL);
+		  int re=cmFuncs.getHeadPosition(searchBuffer,rdState);
+
+		  if(re!=-1)
+		  {
+			 fseek(FL,re-rdState,SEEK_CUR);
+				  break;
+		  }
+	  
+		  endMark=feof(FL);
+		}
+
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+		endMark=feof(FL);
+		int i=ftell(FL);
+	 
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+	 
+		 if(fdRes<hdLen)//读取值小于512
+			return ERROR_Search;
+		 fseek(FL,-1*hdLen,SEEK_CUR);
+		 int rgPoints=cmFuncs.getRangePoints(headerAr);
+		 UINT32  lenFrame=rgPoints*hdLen+512;
+		 arFrame=new UINT8[lenFrame];
+	  
+		 while(endMark==0)
+		 {
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+			 if(fdRes<lenFrame)
+			 {
+				 break;
+			 }
+
+		 		sarModel sarMl(arFrame,rtStr);	
+				sarMl.outPutSarInfo();	
+
+				imgProc imgCon(arFrame,rtStr);
+
+				imgCon.creatTif();
+
+				endMark=feof(FL);
+		 }
+	 
+		 fclose(FL);
+	  return 0;
+	}
+	//还原点迹信息
+	extern "C" _declspec(dllexport) int _stdcall SarGMTIAimGen(char * strSource,const char *strDest)
+	{
+		int hdLen=512;//sar-gmti点迹帧头有1024个字节,图像有512字节
+		int aimHdLen=1024;
+		string rtStr(strDest);
+		
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+
+		FILE * FL=fopen(strSource,"rb");
+		commonFuncs cmFuncs;	
+		int endMark=cmFuncs.searchHeadPositionX64(FL);	  
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+
+	 int cntTemp=0;
+
+	 while(endMark==0)
+		 {
+		 //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 _fseeki64(FL,-1*hdLen,SEEK_CUR);
+
+		 if(fdRes<hdLen)//读取值小于帧头长度
+			return ERROR_Search;
+
+		 bool ifAimTemp=cmFuncs.getIfSarGmtiAim(headerAr);
+		 UINT32  lenFrame;
+
+		 if(ifAimTemp)
+		 {
+			 lenFrame=aimHdLen+10*8192;
+		 }
+		 else
+		 {
+			 int rgPoints=cmFuncs.getRangePoints(headerAr);
+		     lenFrame=rgPoints*hdLen+hdLen;
+		 }
+		 
+		     arFrame=new UINT8[lenFrame];
+	  
+		 
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+			 if(fdRes<lenFrame)
+			 {
+				 if(arFrame!=NULL)
+				 {
+				 delete [] arFrame;
+				 arFrame=NULL;
+				 }
+				 break;
+			 }
+
+			    GMTIModel GMTIMd(arFrame,rtStr);
+				GMTIMd.outPutTxtInfo();
+				GMTIMd.outPutGMTIData();
+
+				endMark=cmFuncs.searchHeadPositionX64(FL);	
+
+				if(arFrame!=NULL)
+				{
+				 delete [] arFrame;
+				 arFrame=NULL;
+				}
+
+		  }
+	      
+		
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+			headerAr=NULL;
+		}
+
+		if(arFrame!=NULL)
+		{
+			delete []arFrame;
+			arFrame=NULL;
+		}
+
+		 fclose(FL);
+		 return 0;
+	
+	}
+	//从头搜索,发现帧头即按固定偏移(距离向*512)
+	//2014_07_11发现帧长不固定的现象(不是512整数倍),所以升级
+	extern "C" _declspec(dllexport) int _stdcall infoRestore1_older_0711(UINT8 *dataAr,char *strDest,int len)
+	{
+		int rtRes=0;
+
+		commonFuncs cmFuncs;
+
+		int headerPos=cmFuncs.getHeadPosition(dataAr,len);
+
+		int rgPoints=cmFuncs.getRangePoints(&(dataAr[headerPos]));
+
+		int sarMd=cmFuncs.getSarModel(&(dataAr[headerPos]));
+
+		int headerLen=512;
+
+		if(sarMd>2)
+		{
+			headerLen=1024;
+		}
+	
+		int frmLen=headerLen+rgPoints*512; 
+
+		while(len>=(headerPos+frmLen))
+		{
+			string rtPath(strDest);
+			sarModel sarMl(&(dataAr[headerPos]),rtPath);	
+			rtRes=sarMl.outPutSarInfo();
+			if(rtRes!=0)
+			{
+				break;
+			}
+			headerPos+=frmLen;
+		}
+
+		return rtRes;
+
+
+	}
+	//从头搜索,发现帧头,逐步搜索
+	extern "C" _declspec(dllexport) int _stdcall infoRestore1_older_0712(UINT8 *dataAr,char *strDest,int len)
+	{
+
+		//记录数组中帧头的位置
+		int* psAr=new int[1024];
+
+		commonFuncs cmFuncs;
+
+		int psNum=cmFuncs.getHeadPosition(dataAr,len,psAr);
+
+		string rtPath(strDest);
+		int rtRes=0;
+		for(int i=0;i<psNum;i++)
+		{
+			sarModel sarMl(&(dataAr[psAr[i]]),rtPath);	
+			rtRes=sarMl.outPutSarInfo();
+			if(rtRes!=0)
+			{
+				break;
+			}
+		}
+	
+		delete	[]psAr;
+
+		return rtRes;
+
+	}
+	//从头搜索,发现帧头即按固定偏移(距离向*512)
+	//2014_07_11发现帧长不固定的现象(不是512整数倍),所以升级
+	extern "C" _declspec(dllexport) int _stdcall creatTIFF1_older_0711(UINT8 *dataAr,char *strDest,int len,imgProcConrolSt procControl)
+	{
+		int rtRes=0;
+
+		commonFuncs cmFuncs;
+
+		int headerPos=cmFuncs.getHeadPosition(dataAr,len);
+
+		int rgPoints=cmFuncs.getRangePoints(&(dataAr[headerPos]));
+
+		int sarMd=cmFuncs.getSarModel(&(dataAr[headerPos]));
+
+		int headerLen=HEADLEN;
+
+		if(sarMd==3)
+		{
+			headerLen=1024;
+		}
+		else if(sarMd==4)
+		{
+			return ERROR_MODEL;
+		}
+	
+		int frmLen=headerLen+rgPoints*512; 
+
+		while(len>=(headerPos+frmLen))
+		{
+
+			string rtPath(strDest);
+			char chRawFolder[512];
+
+			if(procControl.blOriginal==true)
+			{	    
+				rtPath.append("\\raw\\");
+				int rtPathLen=rtPath.length();
+
+				for(int i=0;i<rtPathLen;i++)
+				{
+					chRawFolder[i]=rtPath[i];
+				}
+				_mkdir(chRawFolder);
+
+				imgProc imgCon(&(dataAr[headerPos]),rtPath);
+				rtRes=imgCon.creatTif();
+				if(rtRes!=0)
+				{
+					break;
+				}
+			 }
+
+			if(procControl.blAlCor||procControl.blRemove||procControl.blAmpCor)
+			{
+				imgProc procImg(&(dataAr[headerPos]),rtPath);
+			
+				SAR_VS_params stPars;			
+				procImg.SAR_VS_params_init(stPars);
+				stPars.output_file_name=rtPath;
+				stPars.tifParams.dataMat=&(dataAr[headerPos]);
+				stPars.tifParams.dtHeight=512;
+				stPars.tifParams.dtWidth=rgPoints;
+				procImg.Local_Funcs1(stPars);
+			}
+			headerPos+=frmLen;
+		}
+		return rtRes;
+	}
+	//从头搜索,发现帧头,逐步搜索
+	extern "C" _declspec(dllexport) int _stdcall creatTIFF1_older_0712(UINT8 *dataAr,char *strDest,int len,imgProcConrolSt procControl)
+	{
+
+		 //记录数组中帧头的位置
+		int* psAr=new int[1024];
+
+		commonFuncs cmFuncs;
+
+		int psNum=cmFuncs.getHeadPosition(dataAr,len,psAr);
+
+		if(psNum<1)
+		{
+			delete []psAr;
+			return ERROR_TIFF;
+		}
+		int rgPoints=cmFuncs.getRangePoints(&(dataAr[psAr[0]]));
+
+		string rtPath(strDest);
+		string rtPahtProc(strDest);
+		int rtRes=0;
+		char chRawFolder[512];
+
+		for(int i=0;i<psNum;i++)
+		{		
+			if(procControl.blOriginal==true)
+			{	    
+				rtPath.append("raw\\");
+				//路径从string转为char *
+				int rtPathLen=rtPath.length();
+				for(int i=0;i<rtPathLen;i++)
+				{
+					chRawFolder[i]=rtPath[i];
+				}
+				chRawFolder[rtPathLen]='\0';
+				//创建文件夹
+				_mkdir(chRawFolder);
+
+				imgProc imgCon(&(dataAr[psAr[i]]),rtPath);
+				rtRes=imgCon.creatTif();
+				if(rtRes!=0)
+				{
+					break;
+				}
+			 }
+
+			if(procControl.blAlCor||procControl.blRemove||procControl.blAmpCor)
+			{
+				imgProc procImg(&(dataAr[psAr[i]]),rtPath);			
+				SAR_VS_params stPars;
+				commonFuncs cmFuncs;
+				string flPath=rtPahtProc.append(cmFuncs.getName(&(dataAr[psAr[i]]))+".tif");
+				procImg.SAR_VS_params_init(stPars);
+				stPars.output_file_name=flPath;
+				stPars.tifParams.dataMat=&(dataAr[psAr[i]]);
+				stPars.tifParams.dtHeight=512;
+				stPars.tifParams.dtWidth=rgPoints;
+				procImg.Local_Funcs1(stPars);
+			}
+		
+		}
+	
+		delete	[]psAr;
+
+		return rtRes;
+	}
+	//辅助函数
+	extern "C" _declspec(dllexport) void _stdcall modelSearch(UINT8 *dataAr,char *strDest,int len)
+	{
+		commonFuncs cmFuncs;
+
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("Error in info search",0);
+			return;
+		}
+
+		//寻找sar-GMTI 广域GMTI
+
+		int  mdJudge=cmFuncs.getSarModel(dataAr);
+
+
+		if(mdJudge==3)
+		{
+
+			cmFuncs.logRecords(strDest,0);
+		}
+		else if(mdJudge==4)
+		{
+			cmFuncs.logRecords(strDest,0);
+		}
+
+		return;
+	}
+	//自动区分sar/sar-gmti/gy-gmti模式
+	extern "C" _declspec(dllexport) int _stdcall xlRealSarProc(UINT8 *dataAr,char *strDest,int len,imgProcConrolSt procControl)
+	{
+		commonFuncs cmFuncs;
+
+		int shRes=cmFuncs.getHeadPosition(dataAr,len);
+
+		//帧格式错误
+		if(shRes!=0)
+		{
+			cmFuncs.logRecords("Error in xlRealSarProc search",0);
+			return ERROR_Search;
+		}
+
+		int mdNum=cmFuncs.getSarModel(dataAr);
+
+		if(mdNum<0 || mdNum>4)
+		{
+			cmFuncs.logRecords("Error in xlRealSarProc model",0);
+
+			return ERROR_MODEL;
+		}
+
+		if(0<=mdNum<=2)
+		{
+			infoRestore1(dataAr,strDest,len);
+
+			creatTIFF1(dataAr,strDest,len,procControl);
+		}
+		else if(mdNum==3)
+		{
+			SarGMTIInfoTrans1(dataAr,strDest,len);
+
+			creatTIFF1(dataAr,strDest,len,procControl);
+		}
+		else 
+		{
+			GgmtiDatProc1(dataAr,strDest,len);
+		}
+
+
+		return 0;
+	}
+	////sar/GMTI融合
+    extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMark0(char *strImage,char *strAim,char *strDest)
+{
+	    
+		int hdLen=512;//帧头有512个字节
+		int hdAimLen=1024;//帧头有512个字节
+		string rtStr(strDest);
+
+
+		//图像文件
+		FILE * FLImage=fopen(strImage,"rb");
+		UINT8 *headerImageAr=new UINT8[hdLen];
+		UINT8 *arImageFrame;
+		//图像数组大小
+	    UINT32 imageArSize;
+		int endMarkImage=feof(FLImage);
+		commonFuncs cmFuncs;	
+		endMarkImage=cmFuncs.searchHeadPosition(FLImage);
+		if(endMarkImage!=0)
+		{
+           return;  
+		}
+
+		//目标文件
+		FILE * FLAim=fopen(strAim,"rb");
+		UINT8 *arAimFrame;
+		int endAimMark=feof(FLAim);
+		endAimMark=cmFuncs.searchHeadPosition(FLAim);
+		//没有搜索到，但已经到文件尾
+		if(endAimMark!=0)
+		{
+			return;
+		}
+
+		//读取目标信息
+			UINT32  lenAimFrame=hdAimLen+10*8192;;
+			arAimFrame=new UINT8[lenAimFrame];
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		    int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+			if(fdAimRes<lenAimFrame)
+			  {				 
+				 return;
+			  }
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+	  //读取图像信息
+			 //string  strName=strDest+cmFuncs.getName(headerImageAr)+"_M.tiff";
+			 //第一次
+			 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+			 UINT32 prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+			 int rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+			 UINT32  lenImageFrame=rgPoints*hdLen;
+			 imageArSize=lenImageFrame*4;
+			 arImageFrame=new UINT8[imageArSize];
+			 memset(arImageFrame,sizeof(UINT8),imageArSize);           
+			 int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);			
+			 if(fdImageRes<lenImageFrame)
+			  {
+				 
+				 return;
+			  }
+
+
+		 while(endAimMark==0)
+		 {
+		 
+		   	while(prfCntAim>prfCntImage)
+			{
+				endMarkImage=cmFuncs.searchHeadPositionX64(FLImage);
+				if(endMarkImage!=0)
+				{
+					return;
+				}
+				memset(headerImageAr,sizeof(UINT8),hdLen);
+				fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+				prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+				rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+				lenImageFrame=rgPoints*hdLen;
+				imageArSize=lenImageFrame*4;
+				if(arImageFrame!=NULL)
+				{
+					delete []arImageFrame;
+					arImageFrame=NULL;
+				}
+				arImageFrame=new UINT8[imageArSize];
+				memset(arImageFrame,sizeof(UINT8),imageArSize);           
+				int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);			
+				if(fdImageRes<lenImageFrame)
+				{		 
+					return;
+				}			  
+			}
+           
+			if(prfCntAim<prfCntImage)
+			{
+				endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+				memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+				int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+				if(fdAimRes<lenAimFrame)
+				{				 
+				return;
+				}
+				UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+			}
+			else
+			{
+				sarGMTIAimInfo gmtiAim(arAimFrame);
+				int aimNumTemp=gmtiAim.aimsNum;
+
+				if(aimNumTemp>1)
+			     {
+
+					GMTIModel GMTIMd(arAimFrame,strDest);
+					GMTIMd.outPutGMTIInfo();
+
+
+					string strMergeName=strDest+cmFuncs.getName(headerImageAr)+"_M.tiff";
+					//第二次
+					//memset(headerImageAr,sizeof(UINT8),hdLen);
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					fdImageRes=fread(&(arImageFrame[lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+					if(fdImageRes<lenImageFrame)
+					  {
+				 
+						 break;
+					  }
+					 //第三次
+					 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					 fdImageRes=fread(&(arImageFrame[lenImageFrame*2]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+					 if(fdImageRes<lenImageFrame)
+					  {				 
+						 break;
+					  }
+
+					 //第四次
+					 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					 fdImageRes=fread(&(arImageFrame[lenImageFrame*3]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+					 if(fdImageRes<lenImageFrame)
+					  {			 
+						 break;
+					  }
+
+
+					long *aimAzPts=new long[aimNumTemp];
+					long *aimRgPts=new long[aimNumTemp];
+
+					for(int p=0;p<aimNumTemp;p++)
+					{
+						aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+					    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+					}
+			     
+					
+					int pathLen=strMergeName.length()+1;
+					char * pathMark=new char[pathLen];
+					memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+					formGIFFromFengJinCl sarGmtiMergeCl;
+					sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImageFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,512*4,gmtiAim.aimsNum);
+					
+					if(aimAzPts!=NULL)
+						{
+							delete []aimAzPts;
+							aimAzPts=NULL;
+						}
+					if(aimRgPts!=NULL)
+					{
+						delete []aimRgPts;
+						aimRgPts=NULL;
+					}
+
+				}//end if
+
+					if(arImageFrame!=NULL)
+					{
+						delete []arImageFrame;
+						arImageFrame=NULL;
+					}
+
+                  
+					endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{				 
+					return;
+					}
+					prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+					//
+					endMarkImage=cmFuncs.searchHeadPositionX64(FLImage);
+					if(endMarkImage!=0)
+					{
+						return;
+					}
+					memset(headerImageAr,sizeof(UINT8),hdLen);
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+					lenImageFrame=rgPoints*hdLen;
+					imageArSize=lenImageFrame*4;
+					if(arImageFrame!=NULL)
+					{
+						delete []arImageFrame;
+						arImageFrame=NULL;
+					}
+					arImageFrame=new UINT8[imageArSize];
+					memset(arImageFrame,sizeof(UINT8),imageArSize);           
+					int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);			
+					if(fdImageRes<lenImageFrame)
+					{
+				 
+						return;
+					}			  
+
+
+
+			}
+				}//endelse
+
+
+			
+			
+					if(arAimFrame!=NULL)
+					{
+						delete []arAimFrame;
+						arAimFrame=NULL;
+					}
+
+					if(headerImageAr!=NULL)
+					{
+						delete []headerImageAr;
+						headerImageAr=NULL;
+					}
+						
+					 fclose(FLAim);
+					 fclose(FLImage);
+	  return;
+}
+    
+    extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMark1(char *strImageFolder,char *strAim,char *strDest)
+	{
+		        static int loopNum=0;
+		        int hdLen=512;//帧头有512个字节
+		        int hdAimLen=1024;//帧头有512个字节
+
+				int prfDis=0;//图像连续prf计数间隔 与多视数有关
+
+		        string rtStr(strDest);
+		       
+
+		        queue<std::string> fls;
+				WIN32_FIND_DATA FindData;
+                HANDLE hError;
+
+				char FilePathName[1024];
+				// 构造路径
+				char FullPathName[1024];
+				strcpy(FilePathName,strImageFolder);
+				strcat(FilePathName, "\\*.*");
+
+				 hError = ::FindFirstFile(FilePathName, &FindData);
+				 if (hError == INVALID_HANDLE_VALUE)
+				 {
+				  return;
+				 }
+
+				 while(::FindNextFile(hError, &FindData))
+				 {
+					 string str(FindData.cFileName);
+
+					 if(str.size()>4 && (str.substr(str.size()-4,4)==".raw"))
+					 {
+						 fls.push(str);
+					 //fls.push_back(str);
+					 }
+				 }
+		//图像文件
+				 if(fls.empty())
+				 {
+					 return;
+				 }
+
+		        string flFolder(strImageFolder);
+				string ss=fls.front();		
+				fls.pop();
+				string imageFl=flFolder+"\\"+ss;
+			   //图像文件
+				FILE * FLImage=fopen(imageFl.c_str(),"rb");
+				UINT8 *headerImageAr=new UINT8[hdLen];
+				UINT8 *arImageFrame;
+				//图像数组大小
+				UINT32 imageArSize;
+				int endMarkImage=feof(FLImage);
+				commonFuncs cmFuncs;	
+				endMarkImage=cmFuncs.searchHeadPosition(FLImage);
+				if(endMarkImage!=0)
+				{
+				   delete []headerImageAr;
+				   headerImageAr=NULL;
+
+				   fclose(FLImage);
+				   return;  
+				}
+		 //读取图像信息
+			 //第一次
+			 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+			 UINT32 prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+			 int mView=cmFuncs.getMViewNum(headerImageAr);
+			 //飞了那么多次，今天才说一个点迹包对应不定多个图像，这种工作沟通，真是服了。
+			 int picsNum=64/mView;
+			 //
+			 int rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+			 UINT32  lenImageFrame=rgPoints*hdLen;
+			 imageArSize=lenImageFrame*4;
+			 arImageFrame=new UINT8[imageArSize];
+			 memset(arImageFrame,sizeof(UINT8),imageArSize);           
+			 int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+			 fclose(FLImage);
+			 if(fdImageRes<lenImageFrame)
+			  {	 
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+			    	 return;
+			   }
+
+				//目标文件	
+				FILE * FLAim=fopen(strAim,"rb");
+				int endAimMark=feof(FLAim);
+				endAimMark=cmFuncs.searchHeadPosition(FLAim);
+				//没有搜索到，但已经到文件尾
+				if(endAimMark!=0)
+				{
+					delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+					fclose(FLAim);
+					return;
+				}
+
+		//读取目标信息
+			UINT32  lenAimFrame=hdAimLen+10*8192;;
+			UINT8 * arAimFrame=new UINT8[lenAimFrame];
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		    int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+			if(fdAimRes<lenAimFrame)
+			  {		
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+
+					delete []arAimFrame;
+				    arAimFrame=NULL;
+
+				 return;
+			  }
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+			//
+			imgProc procImg;	
+			SAR_VS_params stPars;
+
+			 while(endAimMark==0)
+		    {
+				while(prfCntAim>prfCntImage)
+				{
+					
+				    string rtPahtProc(strDest);
+					string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+					procImg.SAR_VS_params_init(stPars);
+					stPars.output_file_name=flPath;
+					stPars.tifParams.dataMat=arImageFrame;
+					stPars.tifParams.dtHeight=512;
+					stPars.tifParams.dtWidth=rgPoints;
+					GMTIModel GMTIMd(headerImageAr,strDest);
+					GMTIMd.outPutGMTIInfo(loopNum);
+					cmFuncs.logRecords("**start create single tiff",1);
+					//2015/11/7 调试注释
+					procImg.Local_Funcs1(stPars);
+					loopNum++;
+					cmFuncs.logRecords("**end create single tiff",1);
+
+					if(fls.empty())
+						{
+							delete []headerImageAr;
+							headerImageAr=NULL;
+
+							delete []arImageFrame;
+							arImageFrame=NULL;
+
+							delete []arAimFrame;
+							arAimFrame=NULL;
+
+							return;
+						}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+					fclose(FLImage);
+					if(fdImageRes<lenImageFrame)
+					  {	 
+						delete []headerImageAr;
+						headerImageAr=NULL;
+
+						delete []arImageFrame;
+						arImageFrame=NULL;
+
+						delete []arAimFrame;
+						arAimFrame=NULL;
+
+						return;
+					  }
+
+				}
+
+				if(prfCntAim<prfCntImage)
+				{
+					
+					endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{
+						delete []headerImageAr;
+						headerImageAr=NULL;
+
+						delete []arImageFrame;
+						arImageFrame=NULL;
+
+						delete []arAimFrame;
+						arAimFrame=NULL;
+
+					    return;
+					}
+					UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+				}
+				else
+				{
+                    sarGMTIAimInfo gmtiAim(arAimFrame);
+				    int aimNumTemp=gmtiAim.aimsNum;
+
+					//cmFuncs.logRecords("目标个数",(double)aimNumTemp);
+
+					if(aimNumTemp>1&&aimNumTemp<8192)
+					{
+
+					GMTIModel GMTIMd(arAimFrame,strDest);
+					GMTIMd.outPutGMTIData();
+					GMTIMd.outPutGMTIInfo(loopNum);
+
+
+					 string strMergeName=strDest+cmFuncs.getNameByLoopNum(arAimFrame,loopNum)+".tiff";
+					 
+					 cmFuncs.logRecords("prf count 1:",(double)prfCntImage);
+						//第二次
+					    if(fls.empty())
+					    {
+							delete []headerImageAr;
+							headerImageAr=NULL;
+
+							delete []arImageFrame;
+							arImageFrame=NULL;
+
+							delete []arAimFrame;
+							arAimFrame=NULL;
+						    return;
+					    }
+						ss=fls.front();		
+					    fls.pop();
+					    imageFl=flFolder+"\\"+ss;
+					    FLImage=fopen(imageFl.c_str(),"rb");
+						fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+						int temp2=cmFuncs.getPRFNum(headerImageAr);
+						fdImageRes=fread(&(arImageFrame[lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+						if(fdImageRes<lenImageFrame)
+						  {				 
+							 break;
+						  }
+						fclose(FLImage);
+					    prfDis=temp2-prfCntImage;
+
+					    //cmFuncs.logRecords("prf间隔:",(double)prfDis);
+						cmFuncs.logRecords("prf count 2:",(double)temp2);
+						 //第三次
+						if(fls.empty())
+					    {
+							delete []headerImageAr;
+							headerImageAr=NULL;
+
+							delete []arImageFrame;
+							arImageFrame=NULL;
+
+							delete []arAimFrame;
+							arAimFrame=NULL;
+						    return;
+					    }
+						ss=fls.front();		
+					    fls.pop();
+					    imageFl=flFolder+"\\"+ss;
+					    FLImage=fopen(imageFl.c_str(),"rb");
+						fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+						int temp3=cmFuncs.getPRFNum(headerImageAr);
+						fdImageRes=fread(&(arImageFrame[lenImageFrame*2]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+						if(fdImageRes<lenImageFrame)
+						  {				 
+							 break;
+						  }
+						fclose(FLImage);
+
+						cmFuncs.logRecords("prf count 3:",(double)temp3);
+
+						if(prfDis!=(temp3-temp2))
+						{
+                            prfCntImage=temp3;
+							continue;
+						}
+						 //第四次
+						if(fls.empty())
+					    {
+							delete []headerImageAr;
+							headerImageAr=NULL;
+
+							delete []arImageFrame;
+							arImageFrame=NULL;
+
+							delete []arAimFrame;
+							arAimFrame=NULL;
+						    return;
+					    }
+						ss=fls.front();		
+					    fls.pop();
+					    imageFl=flFolder+"\\"+ss;
+					    FLImage=fopen(imageFl.c_str(),"rb");
+						fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+						int temp4=cmFuncs.getPRFNum(headerImageAr);
+						fdImageRes=fread(&(arImageFrame[lenImageFrame*3]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+						 if(fdImageRes<lenImageFrame)
+						  {			 
+							 break;
+						  }
+						 fclose(FLImage);
+						 cmFuncs.logRecords("prf count 4:",(double)temp4);
+						 if(prfDis!=(temp4-temp3))
+						{
+                            prfCntImage=temp4;
+							continue;
+						}
+
+						long *aimAzPts=new long[aimNumTemp];
+						long *aimRgPts=new long[aimNumTemp];
+
+						for(int p=0;p<aimNumTemp;p++)
+						{
+							aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+						    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+						}
+				       //   
+						
+						int pathLen=strMergeName.length()+1;
+						char * pathMark=new char[pathLen];
+						memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+						formGIFFromFengJinCl sarGmtiMergeCl;
+						cmFuncs.logRecords("Merge start:",(double)loopNum);
+						sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImageFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,512*4,gmtiAim.aimsNum);
+						cmFuncs.logRecords("Merge Complete:",(double)loopNum);
+
+
+						loopNum++;
+						if(aimAzPts!=NULL)
+							{
+								delete []aimAzPts;
+								aimAzPts=NULL;
+							}
+						if(aimRgPts!=NULL)
+						{
+							delete []aimRgPts;
+							aimRgPts=NULL;
+						}
+
+					 }
+
+
+                  
+					endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{				 
+					return;
+					}
+					prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+					if(fls.empty())
+					{
+						return;
+					}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					/*fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					fdImageRes=fread(&(arImageFrame[lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);			 			 
+					if(fdImageRes<lenImageFrame)
+						{				 
+							break;
+						}
+					fclose(FLImage);*/
+
+					memset(headerImageAr,sizeof(UINT8),hdLen);
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+					lenImageFrame=rgPoints*hdLen;
+					imageArSize=lenImageFrame*4;
+					if(arImageFrame!=NULL)
+					{
+						delete []arImageFrame;
+						arImageFrame=NULL;
+					}
+					arImageFrame=new UINT8[imageArSize];
+					memset(arImageFrame,sizeof(UINT8),imageArSize);           
+					int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);	
+					fclose(FLImage);
+					if(fdImageRes<lenImageFrame)
+					{
+				 
+						return;
+					}	
+
+				}//end if
+
+
+			 }
+
+			     if(arAimFrame!=NULL)
+					{
+						delete []arAimFrame;
+						arAimFrame=NULL;
+					}
+
+					if(headerImageAr!=NULL)
+					{
+						delete []headerImageAr;
+						headerImageAr=NULL;
+					}
+						
+			fclose(FLAim);
+		return;
+	}
+    
+	//搜索sarGMTI点迹文件的目标个数  
+	extern "C" _declspec(dllexport) int _stdcall SarGMTIAimNumCalc(char *strSource,char *strDest)
+	{
+		int hdLen=512;//sar-gmti点迹帧头有1024个字节,图像有512字节
+		int aimHdLen=1024;
+		string rtStr(strDest);
+		
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+
+		FILE * FL=fopen(strSource,"rb");
+		commonFuncs cmFuncs;	
+		int endMark=cmFuncs.searchHeadPositionX64(FL);	  
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+
+	 int cntTemp=0;
+
+	 while(endMark==0)
+		 {
+		 //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 _fseeki64(FL,-1*hdLen,SEEK_CUR);
+
+		 if(fdRes<hdLen)//读取值小于帧头长度
+			return ERROR_Search;
+
+		 bool ifAimTemp=cmFuncs.getIfSarGmtiAim(headerAr);
+		 UINT32  lenFrame;
+
+		 if(ifAimTemp)
+		 {
+			 lenFrame=aimHdLen+10*8192;
+		 }
+		 else
+		 {
+			 int rgPoints=cmFuncs.getRangePoints(headerAr);
+		     lenFrame=rgPoints*hdLen+hdLen;
+		 }
+		 
+		     arFrame=new UINT8[lenFrame];
+	  
+		 
+			 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+			 if(fdRes<lenFrame)
+			 {
+				 if(arFrame!=NULL)
+				 {
+				 delete [] arFrame;
+				 arFrame=NULL;
+				 }
+				 break;
+			 }
+
+			 //UINT32 tt=cmFuncs.getPRFNum(arFrame);
+			 /*cmFuncs.logRecords("this is",cntTemp);*/
+			 //cmFuncs.logRecords("prf:",(double)tt);
+			 //cntTemp++;
+             //cmFuncs.logRecords("sar-GMTI:",cntTemp);
+
+
+			  sarGMTIAimInfo gmtiAim(arFrame);
+			  int aimNumTemp=gmtiAim.aimsNum;
+
+			  cmFuncs.logRecords("************spliter*************",aimNumTemp);
+				/*if(cmFuncs.getIfSarGmtiAim(arFrame)==false)
+				{
+				imgProcConrolSt procControl;
+				procControl.blOriginal=true;
+				creatTIFF1(arFrame,strDest,lenFrame,procControl);
+				}*/
+		 		
+				endMark=cmFuncs.searchHeadPositionX64(FL);	
+
+			    //cmFuncs.logRecords("************spliter*************",cntTemp);
+				
+				if(arFrame!=NULL)
+				{
+				 delete [] arFrame;
+				 arFrame=NULL;
+				}
+
+		  }
+	      
+		
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+			headerAr=NULL;
+		}
+
+		if(arFrame!=NULL)
+		{
+			delete []arFrame;
+			arFrame=NULL;
+		}
+
+		 fclose(FL);
+		 return 0;
+	}
+
+	extern "C" _declspec(dllexport) int _stdcall GgmtiDatProc(char * strSource,char *strDest)
+	{
+		static int iiCnt=0;
+
+		int hdLen=1024;//sar-gmti帧头有1024个字节
+		string rtStr(strDest);
+		UINT32 step=1024*64*512;//搜索步长，可以根据需要定义
+		FILE * FL=fopen(strSource,"rb");
+
+		int pp=ftell(FL);
+
+		UINT8 *searchBuffer=new UINT8[step];
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;		
+		while(endMark==0)
+		{
+		  UINT32 rdState=fread(searchBuffer,sizeof(UINT8),step,FL);
+		  int re=cmFuncs.getHeadPosition(searchBuffer,rdState);
+
+		 if(re!=-1)
+		  {
+			 fseek(FL,re-rdState,SEEK_CUR);	
+			 break;
+		  }
+		  else 
+		  {
+			 // if(re>0)
+			 // {
+				////防止帧头标志位处于两帧分割之间
+				//fseek(FL,-1*HD_LEN,SEEK_CUR);
+			 // }
+		  }	 
+		  endMark=feof(FL);
+		}
+
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+		
+		 while(endMark==0)
+	   {
+
+		   
+		  //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 fseek(FL,-1*hdLen,SEEK_CUR);
+		 if(fdRes<hdLen)//读取值小于帧头长度
+		 {
+			return ERROR_Search;
+		 }
+		 int md=cmFuncs.getSarModel(headerAr);
+
+		if(md!=4)
+		{
+			return ERROR_MODEL;
+		}
+		  
+		iiCnt++;
+		//cmFuncs.logRecords("广域GMTI计数：",iiCnt);
+
+		 UINT32  lenFrame=hdLen+10*512;
+		 arFrame=new UINT8[lenFrame];
+	  
+		 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+
+		 if(fdRes<lenFrame)
+		 {
+			break;
+		 }
+
+		 		GY_GMTIModel Gy_GMTIMd(arFrame,rtStr);
+				////Gy_GMTIMd.output_GY_GMTIInfo();
+				Gy_GMTIMd.outPut_GY_DatInfo();
+				
+				endMark=feof(FL);
+				delete [] arFrame;
+
+		}
+	      
+
+		if(searchBuffer!=NULL)
+		{
+			delete []searchBuffer;
+		}
+
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+		}
+
+
+
+		 fclose(FL);
+
+		return 0;
+	}
+	
+	extern "C" _declspec(dllexport) int _stdcall NewGgmtiDatProc(char * strSource,char *strDest)
+	{
+		static int iiCnt=0;
+
+		int hdLen=1024;//sar-gmti帧头有1024个字节
+		string rtStr(strDest);
+		UINT32 step=1024*64*512;//搜索步长，可以根据需要定义
+		FILE * FL=fopen(strSource,"rb");
+
+		int pp=ftell(FL);
+
+		UINT8 *searchBuffer=new UINT8[step];
+		UINT8 *headerAr=new UINT8[hdLen];
+		UINT8 *arFrame;
+		int endMark=feof(FL);
+
+		commonFuncs cmFuncs;		
+		while(endMark==0)
+		{
+		  UINT32 rdState=fread(searchBuffer,sizeof(UINT8),step,FL);
+		  int re=cmFuncs.getHeadPosition(searchBuffer,rdState);
+
+		 if(re!=-1)
+		  {
+			 fseek(FL,re-rdState,SEEK_CUR);	
+			 break;
+		  }
+		  else 
+		  {
+			 // if(re>0)
+			 // {
+				////防止帧头标志位处于两帧分割之间
+				//fseek(FL,-1*HD_LEN,SEEK_CUR);
+			 // }
+		  }	 
+		  endMark=feof(FL);
+		}
+
+		//没有搜索到，但已经到文件尾
+		if(endMark!=0)
+		{
+			return 0;
+		}
+
+		
+		 while(endMark==0)
+	   {
+	   
+		  //去除不满一帧的情况
+		 int fdRes=fread(headerAr,sizeof(UINT8),hdLen,FL);
+		 //把文件指针放在帧头标志位处
+		 fseek(FL,-1*hdLen,SEEK_CUR);
+		 if(fdRes<hdLen)//读取值小于帧头长度
+		 {
+			return ERROR_Search;
+		 }
+		 int md=cmFuncs.getSarModel(headerAr);
+
+		 if(md!=4)
+		 {
+			return ERROR_MODEL;
+		 }
+		  
+		iiCnt++;
+		//cmFuncs.logRecords("新广域GMTI计数：",iiCnt);
+
+		int aimsNumIntTemp=cmFuncs.getNewGYAimsNum(headerAr);
+
+		if(aimsNumIntTemp<0)
+		{
+			aimsNumIntTemp=SBAIMNUM;
+			//cmFuncs.logRecords("新广域GMTIAimNums：",aimsNumIntTemp);
+		}
+
+		int aimsParsLen=0;
+
+		if((aimsNumIntTemp*12)%512!=0)
+		{
+            aimsParsLen=((int)((aimsNumIntTemp*12)/512)+1)*512;
+		}
+		else
+		{
+			aimsParsLen=aimsNumIntTemp*12;
+		}
+
+		//int aimsParsLen=((int)((aimsNumIntTemp*12)/256)+1)*256;
+
+		 UINT32  lenFrame=aimsParsLen+5120;
+		 arFrame=new UINT8[lenFrame];
+	  
+		 fdRes=fread(arFrame,sizeof(UINT8),lenFrame,FL);
+
+		 if(fdRes<lenFrame)
+		 {
+			break;
+		 }
+
+		 		GY_GMTIModel Gy_GMTIMd(arFrame,rtStr);
+				Gy_GMTIMd.output_NewGY_TxtInfo();
+				Gy_GMTIMd.outPut_NewGY_DatInfo();			
+				cmFuncs.searchHeadPosition(FL);
+				endMark=feof(FL);
+				delete [] arFrame;
+
+		}
+	      
+
+		if(searchBuffer!=NULL)
+		{
+			delete []searchBuffer;
+		}
+
+		if(headerAr!=NULL)
+		{
+			delete []headerAr;
+		}
+
+
+
+		 fclose(FL);
+
+		return 0;
+	}	 
+
+	//20151112 进行升级 sarGMTI数据格式变化
+	extern "C" _declspec(dllexport) void _stdcall SarGMTIMergeMark_1112(char *strImageFolder,char *strAim,const char *strDest)
+	{
+		        static int loopNum=0;
+		        int hdLen=512;//帧头有512个字节
+		        int hdAimLen=1024;//帧头有1024个字节
+
+		        queue<std::string> fls;
+				WIN32_FIND_DATA FindData;
+                HANDLE hError;
+
+				char FilePathName[1024];
+				// 构造路径
+				char FullPathName[1024];
+				strcpy(FilePathName,strImageFolder);
+				strcat(FilePathName, "\\*.*");
+
+				 hError = ::FindFirstFile(FilePathName, &FindData);
+				 if (hError == INVALID_HANDLE_VALUE)
+				 {
+				  return;
+				 }
+
+				 while(::FindNextFile(hError, &FindData))
+				 {
+					 string str(FindData.cFileName);
+
+					 if(str.size()>4 && (str.substr(str.size()-4,4)==".raw"))
+					 {
+						 fls.push(str);
+					 //fls.push_back(str);
+					 }
+				 }
+		//图像文件
+				 if(fls.empty())
+				 {
+					 return;
+				 }
+
+		        string flFolder(strImageFolder);
+				string ss=fls.front();		
+				fls.pop();
+				string imageFl=flFolder+"\\"+ss;
+			   //图像文件
+				FILE * FLImage=fopen(imageFl.c_str(),"rb");
+				UINT8 *headerImageAr=new UINT8[hdLen];
+				UINT8 *arImageFrame;
+				//图像数组大小
+				UINT32 imageArSize;
+				int endMarkImage=feof(FLImage);
+				commonFuncs cmFuncs;	
+				endMarkImage=cmFuncs.searchHeadPosition(FLImage);
+				if(endMarkImage!=0)
+				{
+				   delete []headerImageAr;
+				   headerImageAr=NULL;
+
+				   fclose(FLImage);
+				   return;  
+				}
+		 //读取图像信息
+			 //第一次
+			 fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+			 UINT32 prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+			 int mView=cmFuncs.getMViewNum(headerImageAr);
+			 int picsNum=64/mView;
+			 int rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+			 UINT32  lenImageFrame=rgPoints*hdLen;
+			 imageArSize=lenImageFrame*picsNum;
+			 arImageFrame=new UINT8[imageArSize];
+			 memset(arImageFrame,sizeof(UINT8),imageArSize);           
+			 int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+			 //int arImgActualLen=1;
+			 fclose(FLImage);
+			 if(fdImageRes<lenImageFrame)
+			  {	 
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+			    	
+					return;
+			   }
+
+				//目标文件	
+				FILE * FLAim=fopen(strAim,"rb");
+				int endAimMark=feof(FLAim);
+				endAimMark=cmFuncs.searchHeadPosition(FLAim);
+				//没有搜索到，但已经到文件尾
+				if(endAimMark!=0)
+				{
+					delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+					fclose(FLAim);
+					return;
+				}
+
+		//读取目标信息
+			UINT32  lenAimFrame=hdAimLen+10*8192;;
+			UINT8 * arAimFrame=new UINT8[lenAimFrame];
+			memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+		    int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+			if(fdAimRes<lenAimFrame)
+			  {		
+				   delete []headerImageAr;
+				    headerImageAr=NULL;
+
+				    delete []arImageFrame;
+				    arImageFrame=NULL;
+
+					delete []arAimFrame;
+				    arAimFrame=NULL;
+
+				 return;
+			  }
+			UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+			//
+			imgProc procImg;	
+			SAR_VS_params stPars;
+
+			do
+			{
+				cmFuncs.logRecords("*************************************loopNum",loopNum);
+
+				sarGMTIAimInfo gmtiAim(arAimFrame);				   					
+				while(prfCntAim>prfCntImage)
+				{
+				    string rtPahtProc(strDest);
+					string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+					procImg.SAR_VS_params_init(stPars);
+					stPars.output_file_name=flPath;
+					stPars.tifParams.dataMat=arImageFrame;
+					stPars.tifParams.dtHeight=512;
+					stPars.tifParams.dtWidth=rgPoints;
+					GMTIModel GMTIMd(headerImageAr,strDest);
+					//输出图像的txt文本信息， 与点迹的txt文本信息区别
+					GMTIMd.outPutGMTIInfo(loopNum);
+					cmFuncs.logRecords("**start create single tiff",1);
+					procImg.Local_Funcs1(stPars);
+					loopNum++;
+					cmFuncs.logRecords("**end create single tiff",1);
+					if(fls.empty())
+						{
+							//有可能最后一幅图像不能生成 在大循环后边,可根据数组实际长度进行判断
+							break;
+						}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);
+					fclose(FLImage);					
+				}
+
+				if(prfCntAim<prfCntImage)
+				{		
+						cmFuncs.searchHeadPositionX64(FLAim);
+						if(feof(FLAim))
+						{
+							string rtPahtProc(strDest);
+							string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+							procImg.SAR_VS_params_init(stPars);
+							stPars.output_file_name=flPath;
+							stPars.tifParams.dataMat=arImageFrame;
+							stPars.tifParams.dtHeight=512;
+							stPars.tifParams.dtWidth=rgPoints;
+							GMTIModel GMTIMd(headerImageAr,strDest);
+							//输出图像的txt文本信息， 与点迹的txt文本信息区别
+							GMTIMd.outPutGMTIInfo(loopNum);
+							cmFuncs.logRecords("**start create single tiff",1);
+							procImg.Local_Funcs1(stPars);
+							loopNum++;
+							cmFuncs.logRecords("**end create single tiff",1);
+							continue;
+					}
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					int fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					if(fdAimRes<lenAimFrame)
+					{
+					    continue;
+					}
+					UINT32 prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+				 }//点迹的PRF计数和图像的PRF计数相通
+				else
+				{
+				    int aimNumTemp=gmtiAim.aimsNum;
+
+					//cmFuncs.logRecords("目标个数",(double)aimNumTemp);
+
+					if(aimNumTemp>1&&aimNumTemp<8192)
+					{
+
+						string strMergeName=strDest+cmFuncs.getNameByLoopNum(arAimFrame,loopNum)+".tiff";					 
+
+						for(int k=1;k<picsNum;k++)
+						{
+								if(fls.empty())
+								{
+								   break;
+								}
+								ss=fls.front();		
+								fls.pop();
+								imageFl=flFolder+"\\"+ss;
+								FLImage=fopen(imageFl.c_str(),"rb");
+								fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+								int tempLoop=cmFuncs.getPRFNum(headerImageAr);
+								fdImageRes=fread(&(arImageFrame[k*lenImageFrame]),sizeof(UINT8),lenImageFrame,FLImage);
+								fclose(FLImage);	
+
+								cmFuncs.logRecords("k++++++++++++++++++",(double)k);
+						}
+
+						long *aimAzPts=new long[aimNumTemp];
+						long *aimRgPts=new long[aimNumTemp];
+
+						for(int p=0;p<aimNumTemp;p++)
+						{
+							aimAzPts[p]=(long)gmtiAim.Tar_Azloc[p];
+						    aimRgPts[p]=(long)gmtiAim.aimRangePoints[p];
+						}
+				       //   
+						
+						int pathLen=strMergeName.length()+1;
+						char * pathMark=new char[pathLen];
+						memcpy(pathMark,strMergeName.c_str(),pathLen);
+
+						GMTIModel GMTIMd(headerImageAr,strDest);
+						muInfo mmU(headerImageAr);
+						GMTIMd.lastPlaneLon=mmU.plane_longitude;
+						GMTIMd.lastPlaneLat=mmU.plane_latitude;
+					   //输出图像的txt文本信息， 与点迹的txt文本信息区别
+					    GMTIMd.outPutGMTIInfo(loopNum);
+
+						formGIFFromFengJinCl sarGmtiMergeCl;
+						cmFuncs.logRecords("Merge start:",(double)loopNum);
+						sarGmtiMergeCl.SAR_GmtiTar_Mark0(pathMark,"",arImageFrame,aimAzPts,aimRgPts,gmtiAim.Tar_azrev,gmtiAim.aimV,rgPoints,512*picsNum,gmtiAim.aimsNum);
+						cmFuncs.logRecords("Merge Complete:",(double)loopNum);
+						
+						loopNum++;
+						if(aimAzPts!=NULL)
+							{
+								delete []aimAzPts;
+								aimAzPts=NULL;
+							}
+						if(aimRgPts!=NULL)
+						{
+							delete []aimRgPts;
+							aimRgPts=NULL;
+						}
+
+					 }
+					else//只生成图像
+					{
+						    string rtPahtProc(strDest);
+							string flPath=rtPahtProc.append(cmFuncs.getNameByLoopNum(headerImageAr,loopNum)+".tif");
+							procImg.SAR_VS_params_init(stPars);
+							stPars.output_file_name=flPath;
+							stPars.tifParams.dataMat=arImageFrame;
+							stPars.tifParams.dtHeight=512;
+							stPars.tifParams.dtWidth=rgPoints;
+							GMTIModel GMTIMd(headerImageAr,strDest);
+							//输出图像的txt文本信息， 与点迹的txt文本信息区别
+							GMTIMd.outPutGMTIInfo(loopNum);
+							cmFuncs.logRecords("**start create single tiff",1);
+							procImg.Local_Funcs1(stPars);
+							loopNum++;
+							cmFuncs.logRecords("**end create single tiff",1);
+					}
+
+					//搜索下一个点迹帧
+					endAimMark=cmFuncs.searchHeadPositionX64(FLAim);
+					memset(arAimFrame,sizeof(UINT8),lenAimFrame);
+					fdAimRes=fread(arAimFrame,sizeof(UINT8),lenAimFrame,FLAim);
+					prfCntAim=cmFuncs.getPRFNum(arAimFrame);
+
+					if(fls.empty())
+					{
+						break;
+					}
+					ss=fls.front();		
+					fls.pop();
+					imageFl=flFolder+"\\"+ss;
+					FLImage=fopen(imageFl.c_str(),"rb");
+					
+					memset(headerImageAr,sizeof(UINT8),hdLen);
+					fread(headerImageAr,sizeof(UINT8),hdLen,FLImage);
+					prfCntImage=cmFuncs.getPRFNum(headerImageAr);
+					rgPoints=cmFuncs.getRangePoints(headerImageAr);             
+					lenImageFrame=rgPoints*hdLen;
+					imageArSize=lenImageFrame*picsNum;
+					if(arImageFrame!=NULL)
+					{
+						delete []arImageFrame;
+						arImageFrame=NULL;
+					}
+					arImageFrame=new UINT8[imageArSize];
+					memset(arImageFrame,sizeof(UINT8),imageArSize);           
+					int fdImageRes=fread(arImageFrame,sizeof(UINT8),lenImageFrame,FLImage);	
+					fclose(FLImage);
+					if(fls.empty())
+					{
+						continue;
+					}
+
+				}//end if
+
+			}
+			while(!fls.empty());
+
+
+		if(arAimFrame!=NULL)
+		{
+			delete []arAimFrame;
+			arAimFrame=NULL;
+		}
+
+		if(headerImageAr!=NULL)
+		{
+			delete []headerImageAr;
+			headerImageAr=NULL;
+		}
+						
+		fclose(FLAim);
+		return;
+	}
+ 	
+	/******************************************************************/
